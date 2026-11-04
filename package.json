@@ -7,7 +7,7 @@
   "engines": {
     "node": ">=20.19"
   },
-  "description": "Excalibur.js + TypeScript + Vite + pnpm starter.",
+  "description": "A single-player 2D platformer built with Excalibur.js, TypeScript, Vite and pnpm.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

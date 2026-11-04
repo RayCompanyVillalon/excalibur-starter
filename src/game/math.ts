@@ -22,3 +22,16 @@ export function approach(current: number, target: number, delta: number): number
 export function deadzone(value: number, epsilon = 0.01): number {
   return Math.abs(value) < epsilon ? 0 : value;
 }
+
+/** Linear interpolation from `a` to `b` by `t` in [0, 1]. */
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/**
+ * Frame-rate independent smoothing toward `target`.
+ * `rate` is in 1/seconds; larger values snap faster.
+ */
+export function damp(current: number, target: number, rate: number, dtSeconds: number): number {
+  return lerp(current, target, 1 - Math.exp(-rate * dtSeconds));
+}
