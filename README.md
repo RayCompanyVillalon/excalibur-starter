@@ -139,8 +139,7 @@ to GitHub Pages. `base: './'` keeps the build usable from any subpath.
 
 ## Credits
 
-See `src/assets/CREDITS.md`. C32 art has no license file in the supplied pack; the
-Cam Tatz pack is public domain and the music is CC0.
+See [ASSET_CREDITS.md](ASSET_CREDITS.md) for the full list of art and audio sources.
 
 ## Next steps
 
