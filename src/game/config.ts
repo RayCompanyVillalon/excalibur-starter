@@ -7,13 +7,18 @@ export const GAME = {
   world: {
     tile: 32,
   },
+  /** Source art is 16x16 and is drawn at 2x to fill a 32px world cell. */
+  art: {
+    tile: 16,
+    scale: 2,
+  },
   physics: {
     gravity: 2200,
     maxFallSpeed: 900,
   },
   player: {
-    width: 24,
-    height: 40,
+    width: 16,
+    height: 24,
     runSpeed: 260,
     groundAccel: 1800,
     groundFriction: 2200,
@@ -25,7 +30,7 @@ export const GAME = {
     jumpBufferMs: 120,
   },
   camera: {
-    deadzone: { x: 80, y: 60 },
+    deadzone: { x: 60, y: 40 },
     /** Exponential smoothing rate, in 1/seconds. */
     smoothing: 12,
   },
@@ -33,7 +38,7 @@ export const GAME = {
     killPlanePadding: 160,
   },
   colors: {
-    background: '#0b1117',
+    background: '#0c1520',
     terrain: '#26384a',
     terrainTop: '#4f7591',
     player: '#f2eee1',

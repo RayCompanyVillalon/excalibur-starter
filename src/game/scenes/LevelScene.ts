@@ -1,31 +1,63 @@
-import { Actor, Color, Engine, Keys, Rectangle, Scene, Vector } from 'excalibur';
-import { GAME } from '../config';
+import {
+  Actor,
+  Color,
+  Engine,
+  ImageSource,
+  Keys,
+  Scene,
+  Sprite,
+  Vector,
+} from 'excalibur';
+import { Images } from '../assets';
+import { audio } from '../audio/Sfx';
 import { followCamera } from '../camera/follow';
+import { GAME } from '../config';
 import { readIntent } from '../input/InputMap';
 import { LEVEL_MAP, parseLevel, type LevelData } from '../level/level';
-import { overlaps, type Aabb } from '../physics/aabb';
+import { renderTerrain } from '../level/terrain';
+import { overlaps } from '../physics/aabb';
 import { Player } from '../actors/Player';
 import { Hud } from '../ui/hud';
+
+const CLOUDS: ReadonlyArray<{ x: number; y: number }> = [
+  { x: 120, y: 300 },
+  { x: 430, y: 370 },
+  { x: 760, y: 285 },
+  { x: 1080, y: 390 },
+  { x: 1390, y: 300 },
+  { x: 1670, y: 365 },
+];
 
 export class LevelScene extends Scene {
   private level!: LevelData;
   private player!: Player;
-  private goal!: Actor;
   private readonly hud = new Hud();
   private complete = false;
+  private stepTimer = 0;
 
   override onInitialize(): void {
     this.level = parseLevel(LEVEL_MAP);
     this.backgroundColor = Color.fromHex(GAME.colors.background);
 
     this.buildTerrain();
+    this.buildClouds();
     this.buildGoal();
 
     this.player = new Player(this.level.spawn);
     this.add(this.player);
 
     this.resetCamera();
-    this.hud.toast('Reach the green marker', 2600);
+    this.hud.toast('Reach the door', 2600);
+
+    // Browsers only allow audio after a gesture, so start the loop on the
+    // first key press or click.
+    const unlock = (): void => {
+      audio.startMusic();
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('pointerdown', unlock);
+    };
+    window.addEventListener('keydown', unlock);
+    window.addEventListener('pointerdown', unlock);
   }
 
   override onPreUpdate(engine: Engine, elapsed: number): void {
@@ -33,6 +65,10 @@ export class LevelScene extends Scene {
 
     if (keyboard.wasPressed(Keys.F1)) {
       this.hud.toggleDebug();
+    }
+    if (keyboard.wasPressed(Keys.M)) {
+      const muted = audio.toggleMute();
+      this.hud.toast(muted ? 'Sound off' : 'Sound on', 1000);
     }
     if (keyboard.wasPressed(Keys.R)) {
       this.respawn();
@@ -43,9 +79,29 @@ export class LevelScene extends Scene {
       return;
     }
 
+    const wasGrounded = this.player.grounded;
+    const fallSpeed = this.player.kinematics.vy;
     this.player.step(readIntent(keyboard), this.level.solids, elapsed);
 
+    const grounded = this.player.grounded;
+    if (wasGrounded && !grounded && this.player.kinematics.vy < 0) {
+      audio.jump();
+    } else if (!wasGrounded && grounded && fallSpeed > 220) {
+      audio.land(fallSpeed);
+    }
+
+    if (grounded && Math.abs(this.player.kinematics.vx) > 40) {
+      this.stepTimer += elapsed;
+      if (this.stepTimer >= 200) {
+        this.stepTimer = 0;
+        audio.step();
+      }
+    } else {
+      this.stepTimer = 0;
+    }
+
     if (this.player.pos.y > this.level.heightPx + GAME.level.killPlanePadding) {
+      audio.death();
       this.respawn();
       return;
     }
@@ -87,77 +143,60 @@ export class LevelScene extends Scene {
   }
 
   private buildTerrain(): void {
-    for (const solid of this.level.solids) {
-      const block = new Actor({
-        pos: new Vector(solid.x, solid.y),
-        anchor: new Vector(0, 0),
-        width: solid.width,
-        height: solid.height,
-        z: 0,
-      });
-      block.graphics.use(
-        new Rectangle({
-          width: solid.width,
-          height: solid.height,
-          color: Color.fromHex(GAME.colors.terrain),
-        }),
-      );
-      this.add(block);
+    const canvas = renderTerrain(this.level, Images.terrain);
+    const image = ImageSource.fromHtmlCanvasElement(canvas);
+    const terrain = new Actor({
+      pos: new Vector(0, 0),
+      anchor: new Vector(0, 0),
+      width: this.level.widthPx,
+      height: this.level.heightPx,
+      z: -10,
+    });
+    terrain.graphics.use(new Sprite({ image }));
+    this.add(terrain);
+  }
 
-      // Only cap runs that are exposed to the sky, so stacked ground rows
-      // read as one solid mass instead of stripes.
-      if (this.hasSolidAbove(solid)) {
-        continue;
-      }
+  private buildClouds(): void {
+    // Cloud.png is a single 32x16 cloud split into two 16px halves, so draw
+    // the whole image instead of slicing it into frames.
+    const sprite = Images.cloud.toSprite({
+      scale: new Vector(GAME.art.scale, GAME.art.scale),
+      opacity: 0.45,
+      tint: Color.fromHex('#c7dcec'),
+    });
 
-      const lip = new Actor({
-        pos: new Vector(solid.x, solid.y),
+    for (const spot of CLOUDS) {
+      const cloud = new Actor({
+        pos: new Vector(spot.x, spot.y),
         anchor: new Vector(0, 0),
-        width: solid.width,
-        height: 4,
-        z: 1,
+        width: 32 * GAME.art.scale,
+        height: GAME.art.tile * GAME.art.scale,
+        z: -8,
       });
-      lip.graphics.use(
-        new Rectangle({
-          width: solid.width,
-          height: 4,
-          color: Color.fromHex(GAME.colors.terrainTop),
-        }),
-      );
-      this.add(lip);
+      cloud.graphics.use(sprite);
+      this.add(cloud);
     }
   }
 
-  private hasSolidAbove(solid: Aabb): boolean {
-    return this.level.solids.some(
-      (other) =>
-        other !== solid &&
-        Math.abs(other.y + other.height - solid.y) < 0.5 &&
-        other.x < solid.x + solid.width &&
-        other.x + other.width > solid.x,
-    );
-  }
-
   private buildGoal(): void {
-    this.goal = new Actor({
-      pos: new Vector(this.level.goal.x, this.level.goal.y),
+    const goal = this.level.goal;
+    const doorWidth = GAME.art.tile * GAME.art.scale;
+    const doorHeight = 32 * GAME.art.scale;
+
+    const door = new Actor({
+      pos: new Vector(goal.x + (goal.width - doorWidth) / 2, goal.y + goal.height - doorHeight),
       anchor: new Vector(0, 0),
-      width: this.level.goal.width,
-      height: this.level.goal.height,
+      width: doorWidth,
+      height: doorHeight,
       z: 2,
     });
-    this.goal.graphics.use(
-      new Rectangle({
-        width: this.level.goal.width,
-        height: this.level.goal.height,
-        color: Color.fromHex(GAME.colors.goal),
-      }),
-    );
-    this.add(this.goal);
+    door.graphics.use(Images.door.toSprite({ scale: new Vector(GAME.art.scale, GAME.art.scale) }));
+    this.add(door);
   }
 
   private respawn(): void {
     this.complete = false;
+    this.stepTimer = 0;
     this.player.respawn(this.level.spawn);
     this.resetCamera();
     this.hud.toast('Respawn', 1200);
