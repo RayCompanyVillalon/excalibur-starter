@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070a0d" />
+    <title>Excalibur Starter</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #070a0d;
+        --fg: #f2eee1;
+        --muted: #7f8b99;
+        --accent: #f2b04a;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #shell {
+        position: relative;
+        display: grid;
+        place-items: center;
+        height: 100%;
+      }
+      #game {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      #hud {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        padding: 20px 24px;
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.28em;
+        color: var(--accent);
+      }
+      .brand p {
+        margin: 4px 0 0;
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        color: var(--muted);
+      }
+      .controls {
+        position: absolute;
+        right: 24px;
+        bottom: 20px;
+        font-size: 12px;
+        line-height: 1.9;
+        color: var(--muted);
+        text-align: right;
+      }
+      kbd {
+        display: inline-block;
+        min-width: 1.5em;
+        padding: 1px 5px;
+        margin: 0 2px;
+        border: 1px solid #2a3440;
+        border-radius: 4px;
+        background: #0d1319;
+        color: var(--fg);
+        font: inherit;
+        font-size: 11px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="shell">
+      <canvas id="game" aria-label="Excalibur game canvas"></canvas>
+
+      <div id="hud">
+        <header class="brand">
+          <h1>EXCALIBUR STARTER</h1>
+          <p>typescript · vite · pnpm</p>
+        </header>
+
+        <aside class="controls" aria-label="Controls">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</div>
+          <div><kbd>R</kbd> reset</div>
+        </aside>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
