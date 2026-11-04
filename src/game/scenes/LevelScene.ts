@@ -3,7 +3,7 @@ import { GAME } from '../config';
 import { followCamera } from '../camera/follow';
 import { readIntent } from '../input/InputMap';
 import { LEVEL_MAP, parseLevel, type LevelData } from '../level/level';
-import { overlaps } from '../physics/aabb';
+import { overlaps, type Aabb } from '../physics/aabb';
 import { Player } from '../actors/Player';
 import { Hud } from '../ui/hud';
 
@@ -104,6 +104,12 @@ export class LevelScene extends Scene {
       );
       this.add(block);
 
+      // Only cap runs that are exposed to the sky, so stacked ground rows
+      // read as one solid mass instead of stripes.
+      if (this.hasSolidAbove(solid)) {
+        continue;
+      }
+
       const lip = new Actor({
         pos: new Vector(solid.x, solid.y),
         anchor: new Vector(0, 0),
@@ -120,6 +126,16 @@ export class LevelScene extends Scene {
       );
       this.add(lip);
     }
+  }
+
+  private hasSolidAbove(solid: Aabb): boolean {
+    return this.level.solids.some(
+      (other) =>
+        other !== solid &&
+        Math.abs(other.y + other.height - solid.y) < 0.5 &&
+        other.x < solid.x + solid.width &&
+        other.x + other.width > solid.x,
+    );
   }
 
   private buildGoal(): void {
