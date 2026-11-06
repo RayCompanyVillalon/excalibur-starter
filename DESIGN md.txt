@@ -1,0 +1,192 @@
+DESIGN.md
+
+Level platformer with numerous traps and obstacles the player needs to avoid in order to complete, with a cater experience towards speedrunning.
+
+> Spawn into a level 
+> Evaulate the scenery 
+> use the geometry and platforming of the level while avoiding traps and obstacle 
+> complete the level under record time.
+
+
+Main game dedicated towards speed runs.
+
+To beat the level, the player needs to find a hidden key to the door and use it to unlock the door to escape.
+
+Section One - Grassland
+	Level One - No enemies, simple geometry, pitfalls, spikes, in order to complete the level, you need to insert the key into the door and escape
+	Level Two - Enemies; such as evil mushroom people, pitfalls, spikes, and land mines that cause the player to explore into gory & gruesome fashion.
+	Level Three - Enemies;  evil mushroom people, a Boss fight with a giant worm that burrows into the ground and erupts out in violent fashion. The player has to avoid the worm, the traps, and find the key to the door in order to escape.
+
+Section Two - Caves
+	Level One - Darkness surrounds the level, the player holds a lamp that illuminates a small field of light around him. In the cave there are giant spiders that crawl on spider webs, that you have to avoid. There are pitfalls in the level, and falling stalactites.
+	Level Two - Darkness still surrounds the player, this time the player runs into Goblins that attempt to take the player's coins they have collected over time, in order to steal their perfect score. Instead of damaging the player, they rob them. Avoid the traps such as pitfalls, bear traps. When a goblin captures a player, the player must rapidly tap E and complete a button mash in order to break free.
+	Level Three - Darkness surrounds the level, but a Mothman like enemy with glowing red eyes tries to fly and capture the player, while they attempt to avoid traps, find the key to the door, and escape the level.
+
+Section Three - Volcano
+	Level One - We are in a volcano with pitfalls being replaced with lava traps, and enemies being flying demons that come down trying to swoop the player.	The player must avoid sawblades, harpoon traps, and a Demon with a machine gun.
+	Level Two - We are still in hell, now actively trying to avoid the devil himself who is a dark black demon with large horns and yellow glowing eyes and goat legs. He pursues us, mimicking alot of our movement. The geometry of the level is made to accomidate many paths to escape the devil. While also providing ways for the player to avoid traps and pitfalls. 
+	Level Three, there are three switches around the level with a cage hanging in the middle. The devil is pursuing the player, but the player is able to jump on the Devil's head to knock him out. He much knock him out underneath the cage, and then hit the three levers to drop the cage over the Devil and trap him. There are no other enemies, only traps. Once he has completed the level, he gets the last key and escapes through the door, ending the game.
+
+
+
+Scoring
+Depending how fast you completed the levels and their sections, at the end of the game you will reach a scoreboard with a Grading system
+
+
+S +
+A +
+B +
+C +
+F 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHATBOX FIXXER
+
+The main focus of the game is dedicated towards speedrunning. Players are encouraged to complete levels as quickly as possible while navigating challenging platforming sections, avoiding enemies, and overcoming environmental hazards.
+
+Instead of collecting keys to unlock doors, the player must find and collect a specific sandwich ingredient hidden somewhere within each level. Once the ingredient is collected, the player can proceed to the exit and complete the level.
+
+There are nine levels in total, with each level rewarding the player with a different sandwich ingredient. By completing all nine levels, the player collects everything needed to make a sandwich.
+Sandwich Ingredient Progression
+
+    Level 1 – Bread
+    Level 2 – Tomato
+    Level 3 – Lettuce
+    Level 4 – Cheese
+    Level 5 – Pickles
+    Level 6 – Mustard
+    Level 7 – Onionshttps://raycompanyvillalon.github.io/excalibur-starter/
+    Level 8 – Chicken
+    Level 9 – Bacon
+
+Section One – Grassland
+Level One – The Beginning
+
+No enemies are present in this level. The player is introduced to the basic gameplay mechanics through simple level geometry and introductory platforming challenges.
+
+The environment contains basic hazards such as pitfalls and spikes. The player must navigate the level, locate the hidden loaf of bread, collect it, and reach the exit.
+
+Reward: Bread
+Level Two – Mushroom Men
+
+The player encounters their first enemies: evil mushroom people.
+
+The level introduces more challenging platforming sections, including pitfalls, spikes, and land mines. The land mines create particularly dangerous situations, potentially causing gruesome and gory deaths if the player isn't careful.
+
+The player must avoid the mushroom enemies and environmental hazards while searching for the hidden tomato.
+
+Reward: Tomato
+Level Three – The Giant Worm
+
+The player encounters evil mushroom people once again, but this time faces a much larger threat: a giant worm boss.
+
+The worm burrows underground and violently erupts from the ground, attempting to catch the player. The player must avoid its attacks while navigating the level's traps and hazards.
+
+In addition to surviving the boss encounter, the player must locate the hidden lettuce and reach the exit.
+
+Reward: Lettuce
+Section Two – Caves
+Level One – The Dark Caves
+
+Darkness surrounds the entire level. The player carries a lamp that illuminates only a small area around them, limiting visibility and making navigation more challenging.
+
+The caves are inhabited by giant spiders that crawl along webs throughout the environment. The player must avoid these creatures while navigating pitfalls and falling stalactites.
+
+The player must locate the hidden cheese somewhere within the cave and escape.
+
+Reward: Cheese
+Level Two – Goblin Thieves
+
+Darkness continues to surround the player, but this time they encounter goblins.
+
+Rather than directly damaging the player, these goblins attempt to steal the coins the player has collected throughout the game. Losing coins negatively affects the player's score, making them a threat to anyone attempting a perfect run.
+
+The player must navigate the dark environment while avoiding hazards such as pitfalls and bear traps.
+
+If a goblin manages to capture the player, they must rapidly press the E key to complete a button-mashing sequence and break free.
+
+The player must avoid having their coins stolen, locate the hidden pickles, and escape.
+
+Reward: Pickles
+Level Three – The Mothman
+
+The caves become even more dangerous as the player encounters a Mothman-like creature with glowing red eyes.
+
+The creature flies throughout the environment, attempting to capture the player as they navigate the darkness. The player must avoid being caught while overcoming environmental traps and obstacles.
+
+Somewhere within the cave lies the hidden mustard. The player must find it and reach the exit while avoiding the creature.
+
+Reward: Mustard
+Section Three – Volcano
+Level One – The Lava Pits
+
+The player enters a volcanic region of Hell, where traditional pitfalls have been replaced with deadly lava traps.
+
+Flying demons patrol the area, swooping down from above in an attempt to attack the player.
+
+The environment also contains dangerous obstacles, including spinning sawblades and harpoon traps. The player must additionally contend with a demon equipped with a machine gun, who actively fires at them.
+
+The player must navigate the volcanic terrain, avoid the enemies and environmental hazards, and locate the hidden onions.
+
+Reward: Onions
+Level Two – The Devil's Pursuit
+
+The player remains in Hell but now faces a much greater threat: the Devil himself.
+
+The Devil appears as a dark black demon with enormous horns, glowing yellow eyes, and goat-like legs.
+
+Unlike previous enemies, the Devil actively pursues the player throughout the level, mimicking many of the player's movements and making him difficult to escape.
+
+The level's geometry is specifically designed to accommodate multiple escape routes. Players must constantly make decisions about which paths to take while navigating traps, lava pits, and other environmental hazards.
+
+The objective is to stay ahead of the Devil, using the level's branching pathways and obstacles to create distance.
+
+Somewhere within the level is the hidden chicken. The player must collect it and reach the exit without being caught.
+
+Reward: Chicken
+Level Three – The Final Showdown
+
+The player enters the final level of the game, where they must face the Devil one last time.
+
+At the center of the level hangs a large cage suspended above the ground. Three separate levers are positioned throughout the environment, each controlling part of the mechanism that will release the cage.
+
+The Devil actively pursues the player throughout the level. However, the player has a new way to fight back: they can jump onto the Devil's head to knock him unconscious.
+
+The player must lure the Devil underneath the suspended cage and jump on his head to knock him out. Once he is unconscious and positioned beneath the cage, the player must navigate the environment and activate all three levers.
+
+Activating all three levers causes the cage to drop, trapping the Devil underneath it.
+
+There are no other enemies in this level. The only additional threats are environmental traps and obstacles that the player must navigate while completing the objective.
+
+Once the Devil has been successfully trapped, the player can collect the final sandwich ingredient: bacon.
+
+The player then reaches the exit, completing the final level and finishing the game.
+
+Reward: Bacon
+
+
+
+
+
+
+
+
+
+
+
+11/6/2026
+
+Finished our idea, experimented with the A.I generation tool to create the first level.
