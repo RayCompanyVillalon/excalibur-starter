@@ -11,6 +11,7 @@ Level platformer with numerous traps and obstacles the player needs to avoid in 
 Main game dedicated towards speed runs.
 
 To beat the level, the player needs to find a hidden key to the door and use it to unlock the door to escape.
+The small game loop is just being introduced to new challenges, enviorment, and completing the level.
 
 Section One - Grassland
 	Level One - No enemies, simple geometry, pitfalls, spikes, in order to complete the level, you need to insert the key into the door and escape
