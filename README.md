@@ -4,9 +4,10 @@ A small single-player 2D platformer built with **Excalibur.js 0.32**, **TypeScri
 **Vite** and **pnpm** — same toolchain and folder conventions as
 [NatTuck/drunk-panda](https://github.com/NatTuck/drunk-panda).
 
-It has hand-rolled kinematic physics (no engine collision bodies), one hand-authored
-level, and a deadzone camera. Art is placeholder vector rectangles for now, so the
-whole thing is playable without an asset pipeline.
+The goal is a sandwich speedrun: find the ingredient hidden in each level, then
+reach the exit as fast as possible. Section One (Grassland) is in progress — the
+opening level now spans 140 × 32 tiles with moving islands, saw blades, cannons
+and a clock in the top-right corner.
 
 **Play it:** https://raycompanyvillalon.github.io/excalibur-starter/
 
@@ -16,9 +17,12 @@ whole thing is playable without an asset pipeline.
 | --- | --- |
 | Move | `A` / `D` or `←` / `→` |
 | Jump | `Space`, `W` or `↑` (hold for height) |
-| Respawn | `R` |
+| Respawn / restart run | `R` |
 | Mute / unmute | `M` |
 | Debug readout | `F1` |
+
+The clock starts on your first movement input. Dying or pressing `R` resets the
+run, and your best time for the level is stored in `localStorage`.
 
 ## Run it
 
@@ -50,11 +54,17 @@ src/
     physics/aabb.ts           AABB overlap / containment helpers
     physics/kinematic.ts      sub-stepped, axis-separated move + collide
     player/controller.ts      pure player state machine (run, gravity, jump)
-    level/level.ts            ASCII map -> solids, spawn, goal
-    level/LevelScene.ts       builds the world, camera, goal, respawn
+    level/level.ts            ASCII map -> solids, spawn, goal, hazards
+    level/levels.ts           level maps + moving-platform/saw/cannon specs
+    level/LevelScene.ts       builds the world, hazards, camera, timer, respawn
     camera/follow.ts          deadzone follow + world clamping
     actors/Player.ts          thin Excalibur wrapper around the controller
-    ui/hud.ts                 debug overlay and toast messages
+    actors/MovingPlatform.ts  sliding island; carries the player
+    actors/Saw.ts             patrolling buzzsaw
+    actors/Cannon.ts          telegraphed straight-line projectiles
+    actors/Projectile.ts      cannon shot with a limited range
+    ui/hud.ts                 timer, best time, debug overlay and toasts
+    ui/time.ts                m:ss.mmm formatting
     assets.ts                 image + sound manifest
   assets/                     C32 pixel art and audio
 tests/                        Vitest coverage for the pure modules
@@ -72,7 +82,7 @@ a `KinematicBody` moved by `moveAndCollide`, which:
 Jump feel lives in `src/game/player/controller.ts`:
 
 - gravity `2200 px/s²`, terminal fall `900 px/s`;
-- jump impulse `720 px/s` (~3.7 tiles of height);
+- jump impulse `780 px/s` (~4.3 tiles of height);
 - releasing the button early cuts upward velocity to 45 % (variable height);
 - **coyote time** 100 ms and **jump buffering** 120 ms.
 
@@ -80,10 +90,36 @@ All of it is tunable in `src/game/config.ts`.
 
 ### Level
 
-`LEVEL_MAP` in `src/game/level/level.ts` is ASCII: `#` solid, `.` air, `P` spawn,
-`G` goal. Rows may be shorter than the widest row (they are padded with air).
-Horizontal runs of `#` are merged into single rectangles, so a 60 × 24 tile level
-becomes a few dozen collision boxes. Falling below the world respawns you.
+`LEVELS` in `src/game/level/levels.ts` holds the maps and their moving-hazard
+specs. Maps are ASCII: `#` solid, `.` air, `P` spawn, `G` goal, `S` spikes,
+`C` ingredient, plus `M`/`L` markers for the later mushroom and land-mine levels.
+Rows may be shorter than the widest row (they are padded with air).
+Horizontal runs of `#` are merged into single rectangles. Falling below the world
+kills you.
+
+Level 1 is a linear speedrun route:
+
+1. spike gardens and a 3-tile climb;
+2. a shuttle island across a bottomless pit;
+3. a cannon gauntlet with a vertical saw in the gap;
+4. a two-stage platform lift up to the bread;
+5. a descent across floating islands, two more saws and an aimed cannon;
+6. the final hill climb to the door.
+
+Moving platforms are advanced by the scene before the player step, so a player
+standing on one is carried by the platform's frame delta. The per-frame solids
+list is the static terrain plus the current platform rectangles.
+
+### Hazards
+
+- **Spikes** kill on contact and are drawn from the C32 palette as red brick teeth.
+- **Moving platforms** ping-pong on a triangle wave (`periodMs`), so they are
+  periodic and learnable rather than random.
+- **Saws** sweep a fixed track and kill on contact.
+- **Cannons** flash amber for a short telegraph, then fire. Fixed-direction
+  cannons guard corridors; aimed cannons lock onto the player when they charge.
+- Shots expire after 3 s or when they hit terrain, and all hazards reset when a
+  run restarts.
 
 ### Camera
 
@@ -102,7 +138,8 @@ it crisp.
 - a 3 × 3 block autotile (grass top, dirt middle/bottom, grass side edges) picked from
   the solid neighbours of each cell;
 - deterministic grass tufts, rocks and plants on exposed surfaces (rows 3–6 of the atlas);
-- one Excalibur sprite for the result, so the terrain is a single draw call.
+- split into 2048 px-wide chunks, keeping each texture under the 4096 px GPU limit
+  while still being only a handful of draw calls.
 
 ### Sound
 
@@ -122,7 +159,7 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 
 ## Tests
 
-`pnpm test` runs 58 tests over the engine-free modules:
+`pnpm test` runs 66 tests over the engine-free modules:
 
 - `tests/aabb.test.ts` — overlap edges, containment
 - `tests/kinematic.test.ts` — landing, walls, ceilings, tunnelling, ledges
@@ -130,7 +167,8 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 - `tests/camera.test.ts` — deadzone, clamping, small worlds
 - `tests/level.test.ts` — parsing, spawn/goal, run merging, validation
 - `tests/terrain.test.ts` — autotile neighbour rules, decoration stability
-- `tests/math.test.ts` — clamp, approach, deadzone
+- `tests/math.test.ts` — clamp, approach, deadzone, ping-pong
+- `tests/time.test.ts` — speedrun clock formatting
 
 ## Deploying
 
@@ -143,6 +181,8 @@ See [ASSET_CREDITS.md](ASSET_CREDITS.md) for the full list of art and audio sour
 
 ## Next steps
 
-- Add coins, enemies and hazards (the Cam Tatz character pack is available).
-- Add one-way platforms and a second biome (Underworld/Nukalands atlases).
+- Add the S/A/B/C/F grading screen at the end of a section.
+- Finish Section One: mushroom enemies and the Giant Worm boss (Levels 2–3).
+- Add Section Two (Caves): darkness/lamp, spiders, goblins, Mothman.
+- Add Section Three (Volcano): lava, demons, the Devil chase, cage puzzle.
 - Convert the FLAC effects to WAV/OGG for Safari.

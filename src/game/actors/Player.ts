@@ -116,6 +116,13 @@ export class Player extends Actor {
     return bodyAabb(this.state.body);
   }
 
+  /** Shift the body in world space, e.g. when a moving platform carries it. */
+  translate(dx: number, dy: number): void {
+    this.state.body.x += dx;
+    this.state.body.y += dy;
+    this.sync();
+  }
+
   private buildGraphics(): void {
     const { walk, fall } = sheetsFor();
 

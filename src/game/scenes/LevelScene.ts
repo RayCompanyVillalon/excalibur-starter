@@ -13,44 +13,52 @@ import { audio } from '../audio/Sfx';
 import { followCamera } from '../camera/follow';
 import { GAME } from '../config';
 import { readIntent } from '../input/InputMap';
-import { LEVEL_MAP, parseLevel, type LevelData } from '../level/level';
+import { parseLevel, type LevelData } from '../level/level';
+import { LEVELS, type LevelInfo } from '../level/levels';
 import { renderTerrain } from '../level/terrain';
-import { overlaps } from '../physics/aabb';
+import { overlaps, type Aabb } from '../physics/aabb';
 import { Player } from '../actors/Player';
+import { Collectible } from '../actors/Collectible';
+import { Spike } from '../actors/Spike';
+import { Mushroom } from '../actors/Mushroom';
+import { LandMine } from '../actors/LandMine';
+import { WormBoss } from '../actors/WormBoss';
+import { MovingPlatform } from '../actors/MovingPlatform';
+import { Saw } from '../actors/Saw';
+import { Cannon, type Shot } from '../actors/Cannon';
+import { Projectile } from '../actors/Projectile';
 import { Hud } from '../ui/hud';
+import { formatTime } from '../ui/time';
 
-const CLOUDS: ReadonlyArray<{ x: number; y: number }> = [
-  { x: 120, y: 300 },
-  { x: 430, y: 370 },
-  { x: 760, y: 285 },
-  { x: 1080, y: 390 },
-  { x: 1390, y: 300 },
-  { x: 1670, y: 365 },
-];
+const CLOUD_SPACING = 310;
 
 export class LevelScene extends Scene {
   private level!: LevelData;
+  private levelInfo!: LevelInfo;
+  private levelIndex = 0;
   private player!: Player;
+  private collectible: Collectible | null = null;
+  private spikes: Spike[] = [];
+  private mushrooms: Mushroom[] = [];
+  private landMines: LandMine[] = [];
+  private wormBoss: WormBoss | null = null;
+  private platforms: MovingPlatform[] = [];
+  private saws: Saw[] = [];
+  private cannons: Cannon[] = [];
+  private projectiles: Projectile[] = [];
+  /** Static terrain plus the moving platforms, rebuilt every frame. */
+  private solids: Aabb[] = [];
   private readonly hud = new Hud();
   private complete = false;
+  private ingredientCollected = false;
   private stepTimer = 0;
+  private respawnTimer = 0;
+  private respawning = false;
+  private goalHintMs = 0;
 
   override onInitialize(): void {
-    this.level = parseLevel(LEVEL_MAP);
-    this.backgroundColor = Color.fromHex(GAME.colors.background);
-
-    this.buildTerrain();
-    this.buildClouds();
-    this.buildGoal();
-
-    this.player = new Player(this.level.spawn);
-    this.add(this.player);
-
-    this.resetCamera();
-    this.hud.toast('Reach the door', 2600);
-
     // Browsers only allow audio after a gesture, so start the loop on the
-    // first key press or click.
+    // first key press or click. Registered once for the whole session.
     const unlock = (): void => {
       audio.startMusic();
       window.removeEventListener('keydown', unlock);
@@ -58,6 +66,68 @@ export class LevelScene extends Scene {
     };
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
+
+    this.loadLevel(this.levelIndex);
+  }
+
+  private loadLevel(index: number): void {
+    this.clearEntities();
+    this.spikes = [];
+    this.mushrooms = [];
+    this.landMines = [];
+    this.platforms = [];
+    this.saws = [];
+    this.cannons = [];
+    this.projectiles = [];
+    this.wormBoss = null;
+    this.complete = false;
+    this.ingredientCollected = false;
+    this.respawning = false;
+    this.respawnTimer = 0;
+    this.stepTimer = 0;
+    this.goalHintMs = 0;
+
+    const info = LEVELS[index];
+    if (!info) {
+      throw new Error(`Missing level ${index}`);
+    }
+    this.levelInfo = info;
+    this.levelIndex = index;
+    this.level = parseLevel(info.map);
+
+    this.backgroundColor = Color.fromHex(GAME.colors.background);
+
+    this.buildTerrain();
+    this.buildClouds();
+    this.buildGoal();
+    this.buildSpikes();
+    this.buildCollectible();
+    this.buildMushrooms();
+    this.buildLandMines();
+    this.buildWormBoss();
+    this.buildPlatforms();
+    this.buildSaws();
+    this.buildCannons();
+
+    this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
+
+    this.player = new Player(this.level.spawn);
+    this.add(this.player);
+
+    this.hud.useBestTime(info.id);
+    this.hud.resetTimer();
+    this.hud.setIngredient(info.ingredient, false);
+    this.resetCamera();
+
+    const label = `${info.section} — ${info.name}`;
+    this.hud.toast(`${label} · reach the exit with the ${info.ingredient}`, 3200);
+    this.hud.setLevelLabel(label);
+  }
+
+  private clearEntities(): void {
+    for (const actor of [...this.actors]) {
+      actor.kill();
+    }
   }
 
   override onPreUpdate(engine: Engine, elapsed: number): void {
@@ -71,17 +141,26 @@ export class LevelScene extends Scene {
       this.hud.toast(muted ? 'Sound off' : 'Sound on', 1000);
     }
     if (keyboard.wasPressed(Keys.R)) {
-      this.respawn();
+      this.resetRun('Run reset');
       return;
     }
 
-    if (this.complete) {
+    if (this.complete || this.respawning) {
       return;
     }
+
+    const intent = readIntent(keyboard);
+    if (intent.moveX !== 0 || intent.jumpPressed) {
+      this.hud.startTimer();
+    }
+    this.hud.tickTimer();
+
+    this.goalHintMs = Math.max(0, this.goalHintMs - elapsed);
+    this.updateDynamicWorld(elapsed);
 
     const wasGrounded = this.player.grounded;
     const fallSpeed = this.player.kinematics.vy;
-    this.player.step(readIntent(keyboard), this.level.solids, elapsed);
+    this.player.step(intent, this.solids, elapsed);
 
     const grounded = this.player.grounded;
     if (wasGrounded && !grounded && this.player.kinematics.vy < 0) {
@@ -101,19 +180,43 @@ export class LevelScene extends Scene {
     }
 
     if (this.player.pos.y > this.level.heightPx + GAME.level.killPlanePadding) {
-      audio.death();
-      this.respawn();
+      this.killPlayer();
       return;
     }
 
+    if (this.checkSpikeContact()) return;
+    if (this.checkSawContact()) return;
+    if (this.checkProjectileContact()) return;
+    if (this.checkEnemyContact()) return;
+    if (this.checkLandMineContact()) return;
+    if (this.checkWormContact()) return;
+
+    if (!this.ingredientCollected && this.collectible && !this.collectible.isCollected) {
+      if (overlaps(this.player.bounds(), this.collectibleBounds())) {
+        this.pickupCollectible();
+      }
+    }
+
     if (overlaps(this.player.bounds(), this.level.goal)) {
-      this.complete = true;
-      this.player.freeze();
-      this.hud.toast('LEVEL COMPLETE — press R to play again', 4000);
+      if (this.ingredientCollected) {
+        this.completeLevel();
+      } else if (this.goalHintMs <= 0) {
+        this.goalHintMs = 1600;
+        this.hud.toast(`Locked — find the ${this.levelInfo.ingredient} first!`, 1600);
+      }
     }
   }
 
   override onPostUpdate(_engine: Engine, elapsed: number): void {
+    if (this.respawning) {
+      this.respawnTimer -= elapsed;
+      if (this.respawnTimer <= 0) {
+        this.respawning = false;
+        this.resetRun('Respawn');
+      }
+      return;
+    }
+
     const focus = followCamera(
       { x: this.camera.pos.x, y: this.camera.pos.y },
       {
@@ -137,37 +240,142 @@ export class LevelScene extends Scene {
           `ground ${this.player.grounded ? 'yes' : 'no'}`,
           `facing ${this.player.facing > 0 ? 'right' : 'left'}`,
           `world  ${this.level.widthPx} x ${this.level.heightPx}`,
+          `level  ${this.levelInfo.section} — ${this.levelInfo.name}`,
+          `item  ${this.ingredientCollected ? '✓' : '✗'} ${this.levelInfo.ingredient}`,
+          `time  ${formatTime(this.hud.timeMs)}`,
+          `shots ${this.projectiles.length}`,
         ].join('\n'),
       );
     }
   }
 
+  // ─── Dynamic world ──────────────────────────────────────────────────
+
+  private updateDynamicWorld(elapsed: number): void {
+    // Work out which platform is carrying the player before anything moves.
+    const rider = this.platforms.find((platform) => this.isRiding(platform)) ?? null;
+    let carry = { x: 0, y: 0 };
+
+    for (const platform of this.platforms) {
+      const delta = platform.advance(elapsed);
+      if (platform === rider) {
+        carry = delta;
+      }
+    }
+    if (rider && (carry.x !== 0 || carry.y !== 0)) {
+      this.player.translate(carry.x, carry.y);
+    }
+
+    this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
+
+    for (const saw of this.saws) {
+      saw.advance(elapsed);
+    }
+
+    const target = this.playerCenter();
+    for (const cannon of this.cannons) {
+      const shot = cannon.advance(elapsed, target);
+      if (shot) {
+        this.spawnProjectile(shot);
+      }
+    }
+
+    this.updateProjectiles(elapsed);
+  }
+
+  private isRiding(platform: MovingPlatform): boolean {
+    if (!this.player.grounded) {
+      return false;
+    }
+    const body = this.player.bounds();
+    const box = platform.bounds();
+    const feet = body.y + body.height;
+    return (
+      Math.abs(feet - box.y) <= 2 &&
+      body.x + body.width > box.x + 1 &&
+      body.x < box.x + box.width - 1
+    );
+  }
+
+  private playerCenter(): { x: number; y: number } {
+    return {
+      x: this.player.pos.x + this.player.width / 2,
+      y: this.player.pos.y + this.player.height / 2,
+    };
+  }
+
+  private spawnProjectile(shot: Shot): void {
+    const projectile = new Projectile(shot);
+    this.projectiles.push(projectile);
+    this.add(projectile);
+  }
+
+  private updateProjectiles(elapsed: number): void {
+    for (const projectile of this.projectiles) {
+      projectile.advance(elapsed);
+      const box = projectile.bounds();
+      const outOfWorld =
+        box.x + box.width < -64 ||
+        box.x > this.level.widthPx + 64 ||
+        box.y + box.height < -64 ||
+        box.y > this.level.heightPx + 64;
+      if (projectile.expired || outOfWorld || this.solids.some((solid) => overlaps(box, solid))) {
+        projectile.kill();
+      }
+    }
+    this.projectiles = this.projectiles.filter((projectile) => !projectile.isKilled());
+  }
+
+  private clearProjectiles(): void {
+    for (const projectile of this.projectiles) {
+      projectile.kill();
+    }
+    this.projectiles = [];
+  }
+
+  // ─── Level building ─────────────────────────────────────────────────
+
   private buildTerrain(): void {
     const canvas = renderTerrain(this.level, Images.terrain);
-    const image = ImageSource.fromHtmlCanvasElement(canvas);
-    const terrain = new Actor({
-      pos: new Vector(0, 0),
-      anchor: new Vector(0, 0),
-      width: this.level.widthPx,
-      height: this.level.heightPx,
-      z: -10,
-    });
-    terrain.graphics.use(new Sprite({ image }));
-    this.add(terrain);
+
+    // A 4480px-wide texture exceeds the 4096px limit some GPUs advertise, so
+    // split the composited level into horizontal chunks.
+    const MAX_CHUNK = 2048;
+    for (let x = 0; x < canvas.width; x += MAX_CHUNK) {
+      const width = Math.min(MAX_CHUNK, canvas.width - x);
+      const chunk = document.createElement('canvas');
+      chunk.width = width;
+      chunk.height = canvas.height;
+      const ctx = chunk.getContext('2d');
+      if (!ctx) {
+        throw new Error('2D canvas context unavailable');
+      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(canvas, x, 0, width, canvas.height, 0, 0, width, canvas.height);
+
+      const image = ImageSource.fromHtmlCanvasElement(chunk);
+      const terrain = new Actor({
+        pos: new Vector(x, 0),
+        anchor: new Vector(0, 0),
+        width,
+        height: canvas.height,
+        z: -10,
+      });
+      terrain.graphics.use(new Sprite({ image }));
+      this.add(terrain);
+    }
   }
 
   private buildClouds(): void {
-    // Cloud.png is a single 32x16 cloud split into two 16px halves, so draw
-    // the whole image instead of slicing it into frames.
     const sprite = Images.cloud.toSprite({
       scale: new Vector(GAME.art.scale, GAME.art.scale),
       opacity: 0.45,
       tint: Color.fromHex('#c7dcec'),
     });
-
-    for (const spot of CLOUDS) {
+    const count = Math.ceil(this.level.widthPx / CLOUD_SPACING);
+    for (let index = 0; index < count; index += 1) {
       const cloud = new Actor({
-        pos: new Vector(spot.x, spot.y),
+        pos: new Vector(index * CLOUD_SPACING + 80, 120 + ((index * 97) % 260)),
         anchor: new Vector(0, 0),
         width: 32 * GAME.art.scale,
         height: GAME.art.tile * GAME.art.scale,
@@ -182,7 +390,6 @@ export class LevelScene extends Scene {
     const goal = this.level.goal;
     const doorWidth = GAME.art.tile * GAME.art.scale;
     const doorHeight = 32 * GAME.art.scale;
-
     const door = new Actor({
       pos: new Vector(goal.x + (goal.width - doorWidth) / 2, goal.y + goal.height - doorHeight),
       anchor: new Vector(0, 0),
@@ -194,19 +401,325 @@ export class LevelScene extends Scene {
     this.add(door);
   }
 
-  private respawn(): void {
+  private buildSpikes(): void {
+    for (const spikeRect of this.level.spikes) {
+      const spike = new Spike(spikeRect.x, spikeRect.y, spikeRect.width, spikeRect.height);
+      this.spikes.push(spike);
+      this.add(spike);
+    }
+  }
+
+  private buildCollectible(): void {
+    const pos = this.level.collectibles[0];
+    if (!pos) {
+      this.collectible = null;
+      return;
+    }
+    this.collectible = new Collectible(pos, this.levelInfo.ingredient);
+    this.add(this.collectible);
+  }
+
+  private buildPlatforms(): void {
+    for (const spec of this.levelInfo.platforms ?? []) {
+      const platform = new MovingPlatform(spec, Images.terrain);
+      this.platforms.push(platform);
+      this.add(platform);
+    }
+  }
+
+  private buildSaws(): void {
+    for (const spec of this.levelInfo.saws ?? []) {
+      const saw = new Saw(spec);
+      this.saws.push(saw);
+      this.add(saw);
+    }
+  }
+
+  private buildCannons(): void {
+    for (const spec of this.levelInfo.cannons ?? []) {
+      const cannon = new Cannon(spec);
+      this.cannons.push(cannon);
+      this.add(cannon);
+    }
+  }
+
+  private buildMushrooms(): void {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'M') {
+          continue;
+        }
+        const x = (col + 0.5) * tile;
+        const y = (row + 1) * tile;
+        const bounds = this.findPlatformBounds(col, row);
+        const mushroom = new Mushroom(x, y, bounds.left, bounds.right);
+        mushroom.setSolids(this.level.solids);
+        this.mushrooms.push(mushroom);
+        this.add(mushroom);
+      }
+    }
+  }
+
+  private buildLandMines(): void {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'L') {
+          continue;
+        }
+        const x = (col + 0.5) * tile;
+        let surfaceY = (row + 1) * tile;
+        for (let below = row + 1; below < rows.length; below += 1) {
+          if ((rows[below] ?? '')[col] === '#') {
+            surfaceY = (below + 1) * tile;
+            break;
+          }
+        }
+        const mine = new LandMine(x, surfaceY);
+        this.landMines.push(mine);
+        this.add(mine);
+      }
+    }
+  }
+
+  private buildWormBoss(): void {
+    if (this.levelInfo.id !== 3) {
+      return;
+    }
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    let arenaCenterX = 40 * tile;
+    let arenaWidth = 20 * tile;
+    let arenaY = 20 * tile;
+
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      if (!line.includes('##..##..##')) {
+        continue;
+      }
+      arenaY = row * tile;
+      let left = 0;
+      let right = line.length * tile;
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] === '#') {
+          if (left === 0) left = col * tile;
+          right = col * tile;
+        }
+      }
+      arenaCenterX = (left + right) / 2;
+      arenaWidth = right - left;
+      break;
+    }
+
+    this.wormBoss = new WormBoss(arenaCenterX, arenaY, arenaWidth);
+    this.add(this.wormBoss);
+  }
+
+  /** Find the left/right platform bounds for patrol at the given tile. */
+  private findPlatformBounds(col: number, row: number): { left: number; right: number } {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+
+    let platformRow = row + 1;
+    while (platformRow < rows.length && (rows[platformRow] ?? '')[col] !== '#') {
+      platformRow += 1;
+    }
+
+    if (platformRow >= rows.length) {
+      return { left: (col - 2) * tile, right: (col + 3) * tile };
+    }
+
+    const platLine = rows[platformRow] ?? '';
+    let left = 0;
+    let right = platLine.length * tile;
+    let found = false;
+    for (let c = 0; c < platLine.length; c += 1) {
+      if (platLine[c] === '#') {
+        if (!found) {
+          left = c * tile;
+          found = true;
+        }
+        right = (c + 1) * tile;
+      } else if (found) {
+        break;
+      }
+    }
+
+    return { left, right };
+  }
+
+  // ─── Collision checks ───────────────────────────────────────────────
+
+  private collectibleBounds(): Aabb {
+    const collectible = this.collectible;
+    if (!collectible) {
+      return { x: 0, y: 0, width: 0, height: 0 };
+    }
+    return {
+      x: collectible.pos.x - collectible.width / 2,
+      y: collectible.pos.y - collectible.height / 2,
+      width: collectible.width,
+      height: collectible.height,
+    };
+  }
+
+  private checkSpikeContact(): boolean {
+    const body = this.player.bounds();
+    for (const spike of this.spikes) {
+      if (
+        overlaps(body, {
+          x: spike.pos.x - spike.width / 2,
+          y: spike.pos.y,
+          width: spike.width,
+          height: spike.height,
+        })
+      ) {
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private checkSawContact(): boolean {
+    const body = this.player.bounds();
+    for (const saw of this.saws) {
+      if (overlaps(body, saw.bounds())) {
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private checkProjectileContact(): boolean {
+    const body = this.player.bounds();
+    for (const projectile of this.projectiles) {
+      if (overlaps(body, projectile.bounds())) {
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private checkEnemyContact(): boolean {
+    const body = this.player.bounds();
+    for (const mushroom of this.mushrooms) {
+      if (
+        mushroom.isAlive &&
+        overlaps(body, {
+          x: mushroom.pos.x - mushroom.width / 2,
+          y: mushroom.pos.y - mushroom.height,
+          width: mushroom.width,
+          height: mushroom.height,
+        })
+      ) {
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private checkLandMineContact(): boolean {
+    const body = this.player.bounds();
+    for (const mine of this.landMines) {
+      if (
+        !mine.isTriggered &&
+        overlaps(body, {
+          x: mine.pos.x - mine.width / 2,
+          y: mine.pos.y - mine.height,
+          width: mine.width,
+          height: mine.height,
+        })
+      ) {
+        mine.trigger();
+        this.hud.toast('Land mine!', 1000);
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private checkWormContact(): boolean {
+    if (this.wormBoss && this.wormBoss.overlapsWith(this.player.bounds())) {
+      this.killPlayer();
+      return true;
+    }
+    return false;
+  }
+
+  // ─── Game events ────────────────────────────────────────────────────
+
+  private pickupCollectible(): void {
+    if (!this.collectible || this.collectible.isCollected) {
+      return;
+    }
+    const item = this.collectible.collect();
+    this.ingredientCollected = true;
+    audio.collect();
+    this.hud.setIngredient(item, true);
+    this.hud.toast(`${item} secured — now reach the exit!`, 2400);
+  }
+
+  private completeLevel(): void {
+    this.complete = true;
+    this.player.freeze();
+    const time = this.hud.stopTimer(true);
+    const best = this.hud.bestTimeMs;
+    const note = best !== null && best < time ? `best ${formatTime(best)}` : 'new best!';
+    this.hud.toast(
+      `${this.levelInfo.ingredient} secured — ${formatTime(time)} · ${note} · R to run again`,
+      6000,
+    );
+  }
+
+  private killPlayer(): void {
+    audio.death();
+    this.player.freeze();
+    this.clearProjectiles();
+    this.hud.stopTimer(false);
+    this.respawning = true;
+    this.respawnTimer = 800;
+  }
+
+  private resetRun(message: string): void {
     this.complete = false;
+    this.respawning = false;
+    this.respawnTimer = 0;
     this.stepTimer = 0;
+    this.goalHintMs = 0;
+    this.ingredientCollected = false;
+
     this.player.respawn(this.level.spawn);
+    this.collectible?.reset();
+    for (const platform of this.platforms) {
+      platform.reset();
+    }
+    for (const saw of this.saws) {
+      saw.reset();
+    }
+    for (const cannon of this.cannons) {
+      cannon.reset();
+    }
+    this.clearProjectiles();
+    this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
+
+    this.hud.resetTimer();
+    this.hud.setIngredient(this.levelInfo.ingredient, false);
+    this.hud.toast(message, 1000);
     this.resetCamera();
-    this.hud.toast('Respawn', 1200);
   }
 
   private resetCamera(): void {
-    const target = {
-      x: this.player.pos.x + this.player.width / 2,
-      y: this.player.pos.y + this.player.height / 2,
-    };
+    const target = this.playerCenter();
     const focus = followCamera(
       target,
       target,

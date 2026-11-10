@@ -64,6 +64,13 @@ class AudioManager {
     }
     void Sounds.death.play();
   }
+
+  collect(): void {
+    if (this.muted) {
+      return;
+    }
+    void Sounds.collect.play();
+  }
 }
 
 export const audio = new AudioManager();

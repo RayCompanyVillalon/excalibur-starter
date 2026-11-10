@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approach, clamp, deadzone } from '../src/game/math';
+import { approach, clamp, deadzone, pingPong } from '../src/game/math';
 
 describe('clamp', () => {
   it('holds values inside the range', () => {
@@ -29,5 +29,24 @@ describe('deadzone', () => {
   it('snaps tiny values to zero', () => {
     expect(deadzone(0.001)).toBe(0);
     expect(deadzone(1.5)).toBe(1.5);
+  });
+});
+
+describe('pingPong', () => {
+  it('walks out and back over one period', () => {
+    expect(pingPong(0, 1000)).toBe(0);
+    expect(pingPong(250, 1000)).toBeCloseTo(0.5);
+    expect(pingPong(500, 1000)).toBeCloseTo(1);
+    expect(pingPong(750, 1000)).toBeCloseTo(0.5);
+    expect(pingPong(1000, 1000)).toBeCloseTo(0);
+  });
+
+  it('wraps negative and multiple periods', () => {
+    expect(pingPong(-250, 1000)).toBeCloseTo(0.5);
+    expect(pingPong(2250, 1000)).toBeCloseTo(0.5);
+  });
+
+  it('treats a zero period as stationary', () => {
+    expect(pingPong(500, 0)).toBe(0);
   });
 });

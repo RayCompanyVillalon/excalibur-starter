@@ -24,7 +24,7 @@ export const GAME = {
     groundFriction: 2200,
     airAccel: 1200,
     airDrag: 700,
-    jumpSpeed: 720,
+    jumpSpeed: 780,
     jumpCut: 0.45,
     coyoteMs: 100,
     jumpBufferMs: 120,
@@ -37,6 +37,26 @@ export const GAME = {
   level: {
     killPlanePadding: 160,
   },
+  collectible: {
+    /** How many px above the tile surface to draw the collectible. */
+    floatPx: 8,
+  },
+  hazards: {
+    spikeDamage: 9999,
+  },
+  enemies: {
+    mushroom: {
+      width: 16,
+      height: 24,
+      patrolSpeed: 80,
+      /** Ms to pause at each patrol turn-around. */
+      pauseMs: 600,
+    },
+    landMine: {
+      width: 16,
+      height: 12,
+    },
+  },
   colors: {
     background: '#0c1520',
     terrain: '#26384a',
@@ -47,6 +67,12 @@ export const GAME = {
     text: '#f2eee1',
     muted: '#7f8b99',
     accent: '#f2b04a',
+    collectible: '#f0d674',
+    spike: '#dc143c',
+    mushroom: '#8b4513',
+    mushroomCap: '#cd5c5c',
+    landMine: '#555555',
+    landMineTrigger: '#ff4500',
   },
 } as const;
 

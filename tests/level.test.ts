@@ -1,29 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { GAME } from '../src/game/config';
-import { LEVEL_MAP, parseLevel } from '../src/game/level/level';
+import { parseLevel } from '../src/game/level/level';
+import { LEVELS } from '../src/game/level/levels';
 import type { Aabb } from '../src/game/physics/aabb';
 
 describe('parseLevel', () => {
-  const level = parseLevel(LEVEL_MAP);
+  const level = parseLevel(LEVELS[0]!.map);
 
   it('sizes the world in tiles and pixels', () => {
     expect(level.tile).toBe(GAME.world.tile);
-    expect(level.width).toBe(60);
-    expect(level.height).toBe(24);
-    expect(level.widthPx).toBe(60 * GAME.world.tile);
-    expect(level.heightPx).toBe(24 * GAME.world.tile);
+    expect(level.width).toBe(140);
+    expect(level.height).toBe(32);
+    expect(level.widthPx).toBe(140 * GAME.world.tile);
+    expect(level.heightPx).toBe(32 * GAME.world.tile);
   });
 
   it('places the spawn at the bottom-center of the P tile', () => {
     expect(level.spawn.x).toBe(2.5 * GAME.world.tile);
-    expect(level.spawn.y).toBe(21 * GAME.world.tile);
+    expect(level.spawn.y).toBe(29 * GAME.world.tile);
   });
 
   it('places the goal on the G tile', () => {
-    expect(level.goal.x).toBe(55 * GAME.world.tile);
-    expect(level.goal.y).toBe(8 * GAME.world.tile);
+    expect(level.goal.x).toBe(137 * GAME.world.tile);
+    expect(level.goal.y).toBe(15 * GAME.world.tile);
     expect(level.goal.width).toBe(GAME.world.tile);
     expect(level.goal.height).toBe(GAME.world.tile);
+  });
+
+  it('collects spikes and the ingredient', () => {
+    expect(level.spikes).toHaveLength(7);
+    expect(level.collectibles).toHaveLength(1);
+    expect(level.collectibles[0]).toEqual({ x: 90.5 * GAME.world.tile, y: 6.5 * GAME.world.tile });
   });
 
   it('merges horizontal runs of solid tiles', () => {
@@ -45,19 +52,24 @@ describe('parseLevel', () => {
     }
   });
 
-  it('does not include spawn or goal tiles in the solids', () => {
-    const spawnTile = { x: 2 * GAME.world.tile, y: 20 * GAME.world.tile };
-    const goalTile = { x: 55 * GAME.world.tile, y: 8 * GAME.world.tile };
+  it('does not include spawn, goal, spike or ingredient tiles in the solids', () => {
+    const tiles = [
+      { x: 2 * GAME.world.tile, y: 28 * GAME.world.tile },
+      { x: 137 * GAME.world.tile, y: 15 * GAME.world.tile },
+      { x: 6 * GAME.world.tile, y: 28 * GAME.world.tile },
+      { x: 90 * GAME.world.tile, y: 6 * GAME.world.tile },
+    ];
     const hits = (tile: { x: number; y: number }) =>
       level.solids.some(
         (solid) =>
+          solid.y === tile.y &&
           solid.x <= tile.x &&
-          solid.x + solid.width >= tile.x + GAME.world.tile &&
-          solid.y === tile.y,
+          solid.x + solid.width >= tile.x + GAME.world.tile,
       );
 
-    expect(hits(spawnTile)).toBe(false);
-    expect(hits(goalTile)).toBe(false);
+    for (const tile of tiles) {
+      expect(hits(tile)).toBe(false);
+    }
   });
 });
 
@@ -67,6 +79,12 @@ describe('parseLevel validation', () => {
     expect(level.width).toBe(3);
     expect(level.solids).toHaveLength(0);
     expect(level.goal.x).toBe(2 * GAME.world.tile);
+  });
+
+  it('accepts enemy and land-mine markers as air', () => {
+    const level = parseLevel(['P.MG', 'L...']);
+    expect(level.solids).toHaveLength(0);
+    expect(level.spawn.x).toBe(0.5 * GAME.world.tile);
   });
 
   it('rejects unknown tiles', () => {

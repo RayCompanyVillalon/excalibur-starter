@@ -1,13 +1,34 @@
-/** Small DOM overlay: debug readout (F1) and transient messages. */
+import { formatTime } from './time';
+
+/** Small DOM overlay: debug readout (F1), transient messages, and speedrun clock. */
 export class Hud {
   private readonly debugPanel = document.getElementById('debug');
   private readonly debugBody = document.getElementById('debug-body');
   private readonly toastEl = document.getElementById('toast');
+  private readonly ingredientEl = document.getElementById('ingredient');
+  private readonly levelEl = document.getElementById('level-label');
+  private readonly timerEl = document.getElementById('timer');
+  private readonly bestEl = document.getElementById('best-time');
+
   private debugVisible = false;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
+  private bestKey = 'excalibur-starter:best';
+  private bestMs: number | null = null;
+  private startedAt: number | null = null;
+  private elapsedMs = 0;
+  private running = false;
+
   get debugOn(): boolean {
     return this.debugVisible;
+  }
+
+  get timeMs(): number {
+    return this.elapsedMs;
+  }
+
+  get bestTimeMs(): number | null {
+    return this.bestMs;
   }
 
   toggleDebug(): void {
@@ -36,5 +57,107 @@ export class Hud {
     this.toastTimer = setTimeout(() => {
       this.toastEl?.classList.remove('show');
     }, durationMs);
+  }
+
+  /** Update the ingredient tracker display. */
+  setIngredient(name: string, collected: boolean): void {
+    if (!this.ingredientEl) {
+      return;
+    }
+    this.ingredientEl.textContent = collected ? `✓ ${name}` : `? ${name}`;
+    this.ingredientEl.classList.toggle('collected', collected);
+  }
+
+  /** Update the level label display. */
+  setLevelLabel(label: string): void {
+    if (!this.levelEl) {
+      return;
+    }
+    this.levelEl.textContent = label;
+  }
+
+  /** Switch the best-time storage slot (one record per level). */
+  useBestTime(levelId: number): void {
+    this.bestKey = `excalibur-starter:best:level-${levelId}`;
+    this.bestMs = this.readBest();
+    this.renderBest();
+  }
+
+  /** Reset the clock to zero and wait for the first input. */
+  resetTimer(): void {
+    this.startedAt = null;
+    this.elapsedMs = 0;
+    this.running = false;
+    this.timerEl?.classList.remove('finished');
+    this.renderTime();
+  }
+
+  /** Start the clock on the first movement input. */
+  startTimer(): void {
+    if (this.running || this.elapsedMs > 0) {
+      return;
+    }
+    this.startedAt = performance.now();
+    this.running = true;
+  }
+
+  /** Refresh the displayed time; call once per frame while playing. */
+  tickTimer(now = performance.now()): void {
+    if (!this.running || this.startedAt === null) {
+      return;
+    }
+    this.elapsedMs = now - this.startedAt;
+    this.renderTime();
+  }
+
+  /** Freeze the clock, optionally saving a new personal best. Returns the run time. */
+  stopTimer(saveBest = false): number {
+    if (this.running && this.startedAt !== null) {
+      this.elapsedMs = performance.now() - this.startedAt;
+      this.running = false;
+      this.renderTime();
+    }
+    this.timerEl?.classList.add('finished');
+
+    if (saveBest && this.elapsedMs > 0 && (this.bestMs === null || this.elapsedMs < this.bestMs)) {
+      this.bestMs = this.elapsedMs;
+      this.writeBest(this.elapsedMs);
+      this.renderBest();
+    }
+    return this.elapsedMs;
+  }
+
+  private renderTime(): void {
+    if (this.timerEl) {
+      this.timerEl.textContent = formatTime(this.elapsedMs);
+    }
+  }
+
+  private renderBest(): void {
+    if (this.bestEl) {
+      this.bestEl.textContent =
+        this.bestMs === null ? 'BEST —' : `BEST ${formatTime(this.bestMs)}`;
+    }
+  }
+
+  private readBest(): number | null {
+    try {
+      const raw = window.localStorage.getItem(this.bestKey);
+      if (raw === null) {
+        return null;
+      }
+      const value = Number(raw);
+      return Number.isFinite(value) && value > 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeBest(ms: number): void {
+    try {
+      window.localStorage.setItem(this.bestKey, String(Math.round(ms)));
+    } catch {
+      // Storage can be unavailable (private mode); a missing best is fine.
+    }
   }
 }

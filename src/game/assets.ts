@@ -42,4 +42,5 @@ export const Sounds = {
     duration: 1.4,
     playbackRate: 0.8,
   }),
+  collect: new Sound({ paths: [jump1Url], volume: 0.5, duration: 0.3 }),
 };

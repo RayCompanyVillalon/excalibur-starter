@@ -2,37 +2,10 @@ import { GAME } from '../config';
 import { aabb, type Aabb } from '../physics/aabb';
 
 /**
- * One hand-authored level. `#` is solid, `.` is air, `P` is the spawn and
- * `G` is the goal. Rows are padded to the widest row, so trailing dots can
- * be omitted while editing.
+ * Tile legend: `#` solid, `.` air, `P` spawn, `G` goal, `S` spikes,
+ * `C` collectible ingredient, `M` mushroom spawn, `L` land mine.
+ * Rows may be shorter than the widest row; they are padded with air.
  */
-export const LEVEL_MAP: readonly string[] = [
-  '............................................................',
-  '............................................................',
-  '............................................................',
-  '............................................................',
-  '............................................................',
-  '............................................................',
-  '............................................................',
-  '............................................................',
-  '.......................................................G....',
-  '...................................................#######..',
-  '............................................................',
-  '............................................................',
-  '..............................................#####.........',
-  '............................................................',
-  '............................................................',
-  '............#####..............#####.....####...............',
-  '............................................................',
-  '............................................................',
-  '......#####.............#####.......####....................',
-  '............................................................',
-  '..P.........................................................',
-  '##################....########....##########....############',
-  '##################....########....##########....############',
-  '##################....########....##########....############',
-];
-
 export interface LevelData {
   width: number;
   height: number;
@@ -45,11 +18,19 @@ export interface LevelData {
   /** Feet position (bottom-center of the spawn tile). */
   spawn: { x: number; y: number };
   goal: Aabb;
+  /** Spike tiles that kill the player on contact. */
+  spikes: Aabb[];
+  /** Collectible ingredient positions (center of each tile). */
+  collectibles: Array<{ x: number; y: number }>;
 }
 
 const SOLID = '#';
 const SPAWN = 'P';
 const GOAL = 'G';
+const SPIKE = 'S';
+const COLLECTIBLE = 'C';
+const MUSHROOM = 'M';
+const LAND_MINE = 'L';
 const AIR = '.';
 
 export function parseLevel(rows: readonly string[], tile = GAME.world.tile): LevelData {
@@ -65,6 +46,8 @@ export function parseLevel(rows: readonly string[], tile = GAME.world.tile): Lev
 
   const solids: Aabb[] = [];
   const grid: boolean[][] = [];
+  const spikes: Aabb[] = [];
+  const collectibles: Array<{ x: number; y: number }> = [];
   let spawn: { x: number; y: number } | null = null;
   let goal: Aabb | null = null;
 
@@ -103,6 +86,17 @@ export function parseLevel(rows: readonly string[], tile = GAME.world.tile): Lev
           }
           goal = aabb(col * tile, row * tile, tile, tile);
           break;
+        case SPIKE:
+          spikes.push(aabb(col * tile, row * tile, tile, tile));
+          break;
+        case COLLECTIBLE:
+          collectibles.push({ x: (col + 0.5) * tile, y: (row + 0.5) * tile });
+          break;
+        // Enemy markers are visual/entity hints only; the scene spawns them
+        // from the raw map, so the tile itself is plain air.
+        case MUSHROOM:
+        case LAND_MINE:
+          break;
         default:
           throw new Error(`Unknown level tile "${cell}" at ${col},${row}`);
       }
@@ -130,5 +124,7 @@ export function parseLevel(rows: readonly string[], tile = GAME.world.tile): Lev
     grid,
     spawn,
     goal,
+    spikes,
+    collectibles,
   };
 }

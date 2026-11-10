@@ -29,6 +29,18 @@ export function lerp(a: number, b: number, t: number): number {
 }
 
 /**
+ * Triangle wave in [0, 1] over `periodMs`, used by moving platforms and
+ * patrolling hazards. `t` may be any value; negative times wrap cleanly.
+ */
+export function pingPong(tMs: number, periodMs: number): number {
+  if (periodMs <= 0) {
+    return 0;
+  }
+  const phase = (((tMs % periodMs) + periodMs) % periodMs) / periodMs;
+  return phase < 0.5 ? phase * 2 : 2 - phase * 2;
+}
+
+/**
  * Frame-rate independent smoothing toward `target`.
  * `rate` is in 1/seconds; larger values snap faster.
  */
