@@ -30,7 +30,7 @@ import { Projectile } from '../actors/Projectile';
 import { Hud } from '../ui/hud';
 import { formatTime } from '../ui/time';
 
-const CLOUD_SPACING = 310;
+const CLOUD_SPACING = 250;
 
 export class LevelScene extends Scene {
   private level!: LevelData;
@@ -372,13 +372,31 @@ export class LevelScene extends Scene {
       opacity: 0.45,
       tint: Color.fromHex('#c7dcec'),
     });
+    const cloudWidth = 32 * GAME.art.scale;
+    const cloudHeight = GAME.art.tile * GAME.art.scale;
     const count = Math.ceil(this.level.widthPx / CLOUD_SPACING);
+
+    // Scatter clouds through the whole sky band (not just the top of the map),
+    // nudging any that would sit inside terrain up until they are clear.
     for (let index = 0; index < count; index += 1) {
+      const x = index * CLOUD_SPACING + 80;
+      let y = 100 + ((index * 211) % 660);
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const box = { x, y, width: cloudWidth, height: cloudHeight };
+        if (!this.level.solids.some((solid) => overlaps(box, solid))) {
+          break;
+        }
+        y -= 120;
+      }
+      if (y < 0) {
+        continue;
+      }
+
       const cloud = new Actor({
-        pos: new Vector(index * CLOUD_SPACING + 80, 120 + ((index * 97) % 260)),
+        pos: new Vector(x, y),
         anchor: new Vector(0, 0),
-        width: 32 * GAME.art.scale,
-        height: GAME.art.tile * GAME.art.scale,
+        width: cloudWidth,
+        height: cloudHeight,
         z: -8,
       });
       cloud.graphics.use(sprite);
