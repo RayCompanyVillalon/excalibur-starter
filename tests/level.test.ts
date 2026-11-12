@@ -119,6 +119,62 @@ describe('Level 2', () => {
   });
 });
 
+describe('Level 3', () => {
+  const info = LEVELS[2]!;
+  const level = parseLevel(info.map);
+
+  it('is the biggest level so far and rewards the lettuce', () => {
+    expect(level.width).toBe(200);
+    expect(level.height).toBe(40);
+    expect(info.ingredient).toBe('Lettuce');
+  });
+
+  it('keeps every map row the same width', () => {
+    expect(new Set(info.map.map((row) => row.length)).size).toBe(1);
+  });
+
+  it('carries the lettuce above the tower', () => {
+    expect(level.collectibles).toHaveLength(1);
+    expect(level.collectibles[0]).toEqual({
+      x: 128.5 * GAME.world.tile,
+      y: 12.5 * GAME.world.tile,
+    });
+  });
+
+  it('ships mushrooms, mines, spikes and moving hazards', () => {
+    const count = (marker: string): number =>
+      info.map.reduce(
+        (total, row) => total + [...row].filter((cell) => cell === marker).length,
+        0,
+      );
+
+    expect(count('M')).toBe(9);
+    expect(count('L')).toBe(10);
+    expect(count('S')).toBe(33);
+    expect(info.platforms?.length).toBe(4);
+    expect(info.saws?.length).toBe(7);
+    expect(info.cannons?.length).toBe(3);
+  });
+
+  it('defines the worm arena on the final ground run', () => {
+    expect(info.boss).toEqual({ left: 175, right: 193, groundRow: 37 });
+    expect(info.boss!.right).toBeLessThan(level.width);
+    expect(info.boss!.groundRow).toBeLessThan(level.height);
+  });
+
+  it('keeps enemies and mines off the solid tiles', () => {
+    for (let row = 0; row < info.map.length; row += 1) {
+      const line = info.map[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'M' && line[col] !== 'L') {
+          continue;
+        }
+        expect((info.map[row + 1] ?? '')[col]).toBe('#');
+      }
+    }
+  });
+});
+
 describe('parseLevel validation', () => {
   it('pads short rows with air', () => {
     const level = parseLevel(['P.G']);

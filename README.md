@@ -5,10 +5,12 @@ A small single-player 2D platformer built with **Excalibur.js 0.32**, **TypeScri
 [NatTuck/drunk-panda](https://github.com/NatTuck/drunk-panda).
 
 The goal is a sandwich speedrun: find the ingredient hidden in each level, then
-reach the exit as fast as possible. Section One (Grassland) is in progress. Level 1
-spans 140 × 32 tiles with moving islands, saw blades and cannons; Level 2 stretches
-to 180 × 36 with stompable mushroom patrols, land mines, a tower of lifts and two
-gap jumps that require the new dash. A clock in the top-right tracks each run.
+reach the exit as fast as possible. Section One (Grassland) has three levels.
+Level 1 spans 140 × 32 tiles with moving islands, saw blades and cannons; Level 2
+stretches to 180 × 36 with stompable mushroom patrols, land mines, a tower of
+lifts and two gap jumps that require the dash; Level 3 grows to 200 × 40 and ends
+in a worm boss that erupts out of the ground. A clock in the top-right tracks each
+run.
 
 **Play it:** https://raycompanyvillalon.github.io/excalibur-starter/
 
@@ -67,6 +69,7 @@ src/
     actors/Saw.ts             patrolling buzzsaw
     actors/Cannon.ts          telegraphed straight-line projectiles
     actors/Projectile.ts      cannon shot with a limited range
+    actors/WormBoss.ts        burrowing, telegraphed boss for Level 3
     ui/hud.ts                 timer, best time, debug overlay and toasts
     ui/time.ts                m:ss.mmm formatting
     assets.ts                 image + sound manifest
@@ -133,6 +136,23 @@ Level 2 — Mushroom Men — is the difficulty step up:
 Append `?level=2` to the URL to boot straight into Level 2 for playtesting. After
 securing the ingredient, `N` loads the next level.
 
+Level 3 — The Giant Worm — is the Section One finale:
+
+1. a short step and mine/mushroom gauntlet that cannot reach the spawn;
+2. a 7-tile dash chasm, then a shuttle over a 13-tile spike pit;
+3. a cannon corridor with a vertical saw, spikes and patrols;
+4. a three-lift tower climb to the lettuce, with saws crossing the gaps;
+5. a saw-guarded descent across three floating ledges;
+6. the final 7-tile dash gap into the worm's arena;
+7. a wide arena where the worm erupts under your feet, then the door.
+
+The worm is dormant until you enter the arena. It telegraphs each eruption with
+a cracked dirt mound, tracks your position between strikes, and gets faster after
+two eruptions. Only the surfaced body is harmful. See
+[LEVEL_3.md](LEVEL_3.md) for the full route, boss timings and fairness rules.
+
+Append `?level=3` to boot straight into Level 3.
+
 ### Hazards
 
 - **Spikes** kill on contact and are drawn from the C32 palette as red brick teeth.
@@ -145,6 +165,10 @@ securing the ingredient, `N` loads the next level.
 - **Saws** sweep a fixed track and kill on contact.
 - **Cannons** flash amber for a short telegraph, then fire. Fixed-direction
   cannons guard corridors; aimed cannons lock onto the player when they charge.
+- **The Giant Worm** burrows under its arena, marks the eruption point with a
+  cracked mound, then erupts. Contact with the surfaced body is fatal; the mound
+  and submerge are safe. It wakes when you enter the arena and enrages after two
+  eruptions.
 - Shots expire after 3 s or when they hit terrain, and all hazards reset when a
   run restarts.
 
@@ -186,13 +210,13 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 
 ## Tests
 
-`pnpm test` runs 78 tests over the engine-free modules:
+`pnpm test` runs 84 tests over the engine-free modules:
 
 - `tests/aabb.test.ts` — overlap edges, containment
 - `tests/kinematic.test.ts` — landing, walls, ceilings, tunnelling, ledges
 - `tests/player.test.ts` — run speed, gravity, jump, jump cut, coyote, buffer, dash
 - `tests/camera.test.ts` — deadzone, clamping, small worlds
-- `tests/level.test.ts` — parsing, spawn/goal, run merging, validation, Level 2
+- `tests/level.test.ts` — parsing, spawn/goal, run merging, validation, Levels 2–3
 - `tests/terrain.test.ts` — autotile neighbour rules, decoration stability
 - `tests/math.test.ts` — clamp, approach, deadzone, ping-pong
 - `tests/time.test.ts` — speedrun clock formatting
@@ -209,7 +233,6 @@ See [ASSET_CREDITS.md](ASSET_CREDITS.md) for the full list of art and audio sour
 ## Next steps
 
 - Add the S/A/B/C/F grading screen at the end of a section.
-- Finish Section One: mushroom enemies and the Giant Worm boss (Levels 2–3).
 - Add Section Two (Caves): darkness/lamp, spiders, goblins, Mothman.
 - Add Section Three (Volcano): lava, demons, the Devil chase, cage puzzle.
 - Convert the FLAC effects to WAV/OGG for Safari.

@@ -79,6 +79,8 @@ export class LevelScene extends Scene {
   private respawnTimer = 0;
   private respawning = false;
   private goalHintMs = 0;
+  private bossIntroShown = false;
+  private bossEnragedShown = false;
   private dashTrail: { actor: Actor; lifeMs: number }[] = [];
   private dashTrailTimer = 0;
 
@@ -119,6 +121,8 @@ export class LevelScene extends Scene {
     this.respawnTimer = 0;
     this.stepTimer = 0;
     this.goalHintMs = 0;
+    this.bossIntroShown = false;
+    this.bossEnragedShown = false;
     this.dashTrailTimer = 0;
 
     const info = LEVELS[index];
@@ -199,6 +203,17 @@ export class LevelScene extends Scene {
 
     this.goalHintMs = Math.max(0, this.goalHintMs - elapsed);
     this.updateDynamicWorld(elapsed);
+
+    const boss = this.levelInfo.boss;
+    if (boss && !this.bossIntroShown && this.player.pos.x > boss.left * GAME.world.tile) {
+      this.bossIntroShown = true;
+      this.wormBoss?.awaken();
+      this.hud.toast('The Giant Worm!', 1800);
+    }
+    if (this.wormBoss?.isEnraged && !this.bossEnragedShown) {
+      this.bossEnragedShown = true;
+      this.hud.toast('The worm is enraged!', 1400);
+    }
 
     const wasGrounded = this.player.grounded;
     const fallSpeed = this.player.kinematics.vy;
@@ -288,6 +303,7 @@ export class LevelScene extends Scene {
           `item  ${this.ingredientCollected ? '✓' : '✗'} ${this.levelInfo.ingredient}`,
           `time  ${formatTime(this.hud.timeMs)}`,
           `shots ${this.projectiles.length}`,
+          `boss  ${this.wormBoss ? (this.wormBoss.isDangerous ? 'surface!' : 'burrowed') : '—'}`,
         ].join('\n'),
       );
     }
@@ -317,6 +333,7 @@ export class LevelScene extends Scene {
     }
 
     const target = this.playerCenter();
+    this.wormBoss?.setTarget(target.x);
     for (const cannon of this.cannons) {
       const shot = cannon.advance(elapsed, target);
       if (shot) {
@@ -599,35 +616,16 @@ export class LevelScene extends Scene {
   }
 
   private buildWormBoss(): void {
-    if (this.levelInfo.id !== 3) {
+    const spec = this.levelInfo.boss;
+    if (!spec) {
       return;
     }
     const tile = GAME.world.tile;
-    const rows = this.levelInfo.map;
-    let arenaCenterX = 40 * tile;
-    let arenaWidth = 20 * tile;
-    let arenaY = 20 * tile;
-
-    for (let row = 0; row < rows.length; row += 1) {
-      const line = rows[row] ?? '';
-      if (!line.includes('##..##..##')) {
-        continue;
-      }
-      arenaY = row * tile;
-      let left = 0;
-      let right = line.length * tile;
-      for (let col = 0; col < line.length; col += 1) {
-        if (line[col] === '#') {
-          if (left === 0) left = col * tile;
-          right = col * tile;
-        }
-      }
-      arenaCenterX = (left + right) / 2;
-      arenaWidth = right - left;
-      break;
-    }
-
-    this.wormBoss = new WormBoss(arenaCenterX, arenaY, arenaWidth);
+    this.wormBoss = new WormBoss({
+      left: spec.left * tile,
+      right: spec.right * tile,
+      groundY: spec.groundRow * tile,
+    });
     this.add(this.wormBoss);
   }
 
@@ -852,10 +850,13 @@ export class LevelScene extends Scene {
     for (const mushroom of this.mushrooms) {
       mushroom.reset();
     }
+    this.wormBoss?.reset();
     this.clearProjectiles();
     this.clearDashTrail();
     this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
 
+    this.bossIntroShown = false;
+    this.bossEnragedShown = false;
     this.hud.resetTimer();
     this.hud.setIngredient(this.levelInfo.ingredient, false);
     this.hud.toast(message, 1000);
