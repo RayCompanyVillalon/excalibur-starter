@@ -68,9 +68,74 @@ export function buildMushroomCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A pancaked mushroom for the stomp effect. */
+export function buildSquashedMushroomCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  // Ground shadow.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(16, 29, 14, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Flat cap.
+  ctx.fillStyle = '#7a1c16';
+  ctx.beginPath();
+  ctx.ellipse(16, 25, 15, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#d94a35';
+  ctx.beginPath();
+  ctx.ellipse(16, 23.5, 14, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Spots.
+  ctx.fillStyle = '#f4e7cf';
+  for (const [sx, sy, rx, ry] of [
+    [8, 23, 2, 1],
+    [16, 21.5, 1.8, 1],
+    [24, 23.5, 2, 1],
+  ] as const) {
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Squished stem.
+  ctx.fillStyle = '#e6d3ae';
+  ctx.fillRect(9, 26, 14, 3);
+  ctx.fillStyle = '#c9b28a';
+  ctx.fillRect(9, 28, 14, 1);
+
+  // X eyes.
+  ctx.strokeStyle = '#2a1a18';
+  ctx.lineWidth = 1.5;
+  for (const ex of [12, 20]) {
+    ctx.beginPath();
+    ctx.moveTo(ex - 2, 26);
+    ctx.lineTo(ex + 2, 29);
+    ctx.moveTo(ex + 2, 26);
+    ctx.lineTo(ex - 2, 29);
+    ctx.stroke();
+  }
+
+  // Feet poking out.
+  ctx.fillStyle = '#5d4434';
+  ctx.fillRect(5, 29, 7, 2);
+  ctx.fillRect(20, 29, 7, 2);
+
+  return canvas;
+}
+
 /**
  * An evil mushroom person that patrols left and right on its platform.
- * Touching it kills the player.
+ * Touching it kills the player, but landing on its cap squashes it.
  */
 export class Mushroom extends Actor {
   private patrolLeft: number;
@@ -82,6 +147,10 @@ export class Mushroom extends Actor {
   private paused = false;
   private solids: readonly Aabb[] = [];
   private _alive = true;
+  private _squashed = false;
+  private squashTimer = 0;
+  private readonly normalSprite: Sprite;
+  private readonly squashedSprite: Sprite;
 
   constructor(x: number, y: number, platformLeft: number, platformRight: number) {
     const { width, height } = GAME.enemies.mushroom;
@@ -97,18 +166,39 @@ export class Mushroom extends Actor {
     this.patrolLeft = platformLeft + width / 2;
     this.patrolRight = platformRight - width / 2;
 
-    const image = ImageSource.fromHtmlCanvasElement(buildMushroomCanvas());
-    this.graphics.use(new Sprite({ image }));
+    this.normalSprite = new Sprite({
+      image: ImageSource.fromHtmlCanvasElement(buildMushroomCanvas()),
+    });
+    this.squashedSprite = new Sprite({
+      image: ImageSource.fromHtmlCanvasElement(buildSquashedMushroomCanvas()),
+    });
+    this.graphics.use(this.normalSprite);
     this.graphics.offset = new Vector(-8, -8);
   }
 
   /** Put the enemy back on its patrol start for a fresh run. */
   reset(): void {
     this._alive = true;
+    this._squashed = false;
+    this.squashTimer = 0;
+    this.graphics.use(this.normalSprite);
+    this.graphics.opacity = 1;
     this.pos.setTo(this.spawnX, this.spawnY);
     this.dir = -1;
     this.paused = false;
     this.pauseTimer = 0;
+  }
+
+  /** Flatten the mushroom after the player lands on its head. */
+  squash(): void {
+    if (!this._alive) {
+      return;
+    }
+    this._alive = false;
+    this._squashed = true;
+    this.squashTimer = GAME.enemies.mushroom.squashMs;
+    this.graphics.use(this.squashedSprite);
+    this.graphics.opacity = 1;
   }
 
   setSolids(solids: readonly Aabb[]): void {
@@ -128,6 +218,11 @@ export class Mushroom extends Actor {
   }
 
   override onPreUpdate(_engine: any, elapsed: number): void {
+    if (this._squashed) {
+      this.squashTimer = Math.max(0, this.squashTimer - elapsed);
+      this.graphics.opacity = this.squashTimer / GAME.enemies.mushroom.squashMs;
+      return;
+    }
     if (!this._alive) {
       return;
     }

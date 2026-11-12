@@ -59,6 +59,12 @@ export const GAME = {
       patrolSpeed: 80,
       /** Ms to pause at each patrol turn-around. */
       pauseMs: 600,
+      /** Upward speed after stomping an enemy, in px/s. */
+      stompBounce: 520,
+      /** How far above the enemy's top the feet may be to count as a stomp. */
+      stompTolerance: 18,
+      /** How long the flattened sprite lingers before fading out, in ms. */
+      squashMs: 450,
     },
     landMine: {
       width: 16,

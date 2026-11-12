@@ -7,8 +7,8 @@ A small single-player 2D platformer built with **Excalibur.js 0.32**, **TypeScri
 The goal is a sandwich speedrun: find the ingredient hidden in each level, then
 reach the exit as fast as possible. Section One (Grassland) is in progress. Level 1
 spans 140 × 32 tiles with moving islands, saw blades and cannons; Level 2 stretches
-to 180 × 36 with mushroom patrols, land mines, a tower of lifts and two gap jumps
-that require the new dash. A clock in the top-right tracks each run.
+to 180 × 36 with stompable mushroom patrols, land mines, a tower of lifts and two
+gap jumps that require the new dash. A clock in the top-right tracks each run.
 
 **Play it:** https://raycompanyvillalon.github.io/excalibur-starter/
 
@@ -19,6 +19,7 @@ that require the new dash. A clock in the top-right tracks each run.
 | Move | `A` / `D` or `←` / `→` |
 | Jump | `Space`, `W` or `↑` (hold for height) |
 | Dash | `Shift` (one air dash per jump) |
+| Stomp | Land on a mushroom's cap |
 | Next level | `N` (after the ingredient is secured) |
 | Respawn / restart run | `R` |
 | Mute / unmute | `M` |
@@ -91,7 +92,9 @@ Jump feel lives in `src/game/player/controller.ts`:
 - **dash** `Shift` bursts to 700 px/s for 170 ms with a 420 ms cooldown. Gravity is
   suspended for the burst, so a jump + dash keeps its height and clears a 7-tile
   gap. You get one air dash per airtime; landing refreshes it, and hitting a wall or
-  ceiling ends the dash early. A cyan streak trails the dash.
+  ceiling ends the dash early. A cyan streak trails the dash;
+- **stomp** dropping onto a mushroom's cap flattens it and bounces you at 520 px/s.
+  The dash and stomp work in every level.
 
 All of it is tunable in `src/game/config.ts`.
 
@@ -133,7 +136,9 @@ securing the ingredient, `N` loads the next level.
 ### Hazards
 
 - **Spikes** kill on contact and are drawn from the C32 palette as red brick teeth.
-- **Mushroom men** patrol the flat run they spawn on, turning at the edges.
+- **Mushroom men** patrol the flat run they spawn on, turning at the edges. Landing
+  on one flattens it and bounces you; touching its side is fatal. They respawn on a
+  fresh run.
 - **Land mines** sit on the surface and detonate on contact; they re-arm on respawn.
 - **Moving platforms** ping-pong on a triangle wave (`periodMs`), so they are
   periodic and learnable rather than random.
@@ -181,7 +186,7 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 
 ## Tests
 
-`pnpm test` runs 76 tests over the engine-free modules:
+`pnpm test` runs 78 tests over the engine-free modules:
 
 - `tests/aabb.test.ts` — overlap edges, containment
 - `tests/kinematic.test.ts` — landing, walls, ceilings, tunnelling, ledges

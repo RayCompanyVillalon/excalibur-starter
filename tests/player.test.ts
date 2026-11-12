@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GAME } from '../src/game/config';
 import { aabb } from '../src/game/physics/aabb';
 import {
+  bouncePlayer,
   createPlayerState,
   stepPlayer,
   type Intent,
@@ -232,5 +233,34 @@ describe('dash', () => {
       DT,
     );
     expect(left.dashDir).toBe(-1);
+  });
+});
+
+describe('stomp bounce', () => {
+  it('launches the player upward and clears jump/dash state', () => {
+    const state = airborne(0, 300);
+    state.jumpHeld = true;
+    state.jumpBufferMs = GAME.player.jumpBufferMs;
+    state.dashMsLeft = GAME.dash.durationMs;
+
+    bouncePlayer(state, GAME.enemies.mushroom.stompBounce);
+
+    expect(state.body.vy).toBe(-GAME.enemies.mushroom.stompBounce);
+    expect(state.onGround).toBe(false);
+    expect(state.jumpHeld).toBe(false);
+    expect(state.jumpBufferMs).toBe(0);
+    expect(state.dashMsLeft).toBe(0);
+  });
+
+  it('rises for a while after the bounce', () => {
+    const state = airborne(0, 300);
+    bouncePlayer(state, GAME.enemies.mushroom.stompBounce);
+    const startY = state.body.y;
+
+    for (let i = 0; i < 6; i += 1) {
+      stepPlayer(state, IDLE, [], DT);
+    }
+
+    expect(state.body.y).toBeLessThan(startY);
   });
 });

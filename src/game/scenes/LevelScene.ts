@@ -202,6 +202,7 @@ export class LevelScene extends Scene {
 
     const wasGrounded = this.player.grounded;
     const fallSpeed = this.player.kinematics.vy;
+    const prevFeet = this.player.bounds().y + this.player.height;
     this.player.step(intent, this.solids, elapsed);
     this.updateDashTrail(elapsed);
 
@@ -230,7 +231,7 @@ export class LevelScene extends Scene {
     if (this.checkSpikeContact()) return;
     if (this.checkSawContact()) return;
     if (this.checkProjectileContact()) return;
-    if (this.checkEnemyContact()) return;
+    if (this.checkEnemyContact(prevFeet, fallSpeed)) return;
     if (this.checkLandMineContact()) return;
     if (this.checkWormContact()) return;
 
@@ -653,12 +654,18 @@ export class LevelScene extends Scene {
       return { left: (col - 2) * tile, right: (col + 3) * tile };
     }
 
+    // A column belongs to the same run only if nothing blocks the enemy's
+    // walking row and its ground sits at the same height. This stops patrols
+    // at raised steps and adjacent higher ledges.
+    const sameRun = (column: number): boolean =>
+      (rows[row] ?? '')[column] !== '#' && surfaceRow(column) === surface;
+
     let left = col;
-    while (left > 0 && surfaceRow(left - 1) === surface) {
+    while (left > 0 && sameRun(left - 1)) {
       left -= 1;
     }
     let right = col;
-    while (right + 1 < width && surfaceRow(right + 1) === surface) {
+    while (right + 1 < width && sameRun(right + 1)) {
       right += 1;
     }
 
@@ -720,21 +727,37 @@ export class LevelScene extends Scene {
     return false;
   }
 
-  private checkEnemyContact(): boolean {
+  /**
+   * Touching a mushroom is fatal unless the player is falling onto its cap,
+   * in which case the mushroom is flattened and the player bounces.
+   */
+  private checkEnemyContact(prevFeet: number, fallSpeed: number): boolean {
     const body = this.player.bounds();
+    const cfg = GAME.enemies.mushroom;
     for (const mushroom of this.mushrooms) {
-      if (
-        mushroom.isAlive &&
-        overlaps(body, {
-          x: mushroom.pos.x - mushroom.width / 2,
-          y: mushroom.pos.y - mushroom.height,
-          width: mushroom.width,
-          height: mushroom.height,
-        })
-      ) {
-        this.killPlayer();
-        return true;
+      if (!mushroom.isAlive) {
+        continue;
       }
+      const box = {
+        x: mushroom.pos.x - mushroom.width / 2,
+        y: mushroom.pos.y - mushroom.height,
+        width: mushroom.width,
+        height: mushroom.height,
+      };
+      if (!overlaps(body, box)) {
+        continue;
+      }
+
+      const comingDown = fallSpeed > 0 && prevFeet <= box.y + cfg.stompTolerance;
+      if (comingDown) {
+        mushroom.squash();
+        this.player.bounce(cfg.stompBounce);
+        audio.land(360);
+        continue;
+      }
+
+      this.killPlayer();
+      return true;
     }
     return false;
   }

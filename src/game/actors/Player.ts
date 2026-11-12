@@ -10,7 +10,13 @@ import { Images } from '../assets';
 import { GAME } from '../config';
 import type { Aabb } from '../physics/aabb';
 import { bodyAabb } from '../physics/kinematic';
-import { createPlayerState, stepPlayer, type Intent, type PlayerState } from '../player/controller';
+import {
+  bouncePlayer,
+  createPlayerState,
+  stepPlayer,
+  type Intent,
+  type PlayerState,
+} from '../player/controller';
 
 const SCALE = () => new Vector(GAME.art.scale, GAME.art.scale);
 
@@ -111,6 +117,13 @@ export class Player extends Actor {
   respawn(spawn: { x: number; y: number }): void {
     this.state = createPlayerState(spawn);
     this.currentGraphic = 'idle';
+    this.sync();
+    this.updateAnimation();
+  }
+
+  /** Hop upward after stomping an enemy. */
+  bounce(speed: number): void {
+    bouncePlayer(this.state, speed);
     this.sync();
     this.updateAnimation();
   }

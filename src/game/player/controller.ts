@@ -158,3 +158,16 @@ export function stepPlayer(
 
   return state;
 }
+
+/**
+ * Launch the player upward after stomping an enemy. Any active dash is
+ * cancelled so the bounce reads as a clean hop rather than a flat burst.
+ */
+export function bouncePlayer(state: PlayerState, speed: number): void {
+  state.body.vy = -speed;
+  state.dashMsLeft = 0;
+  state.onGround = false;
+  state.jumpHeld = false;
+  state.coyoteMs = 0;
+  state.jumpBufferMs = 0;
+}
