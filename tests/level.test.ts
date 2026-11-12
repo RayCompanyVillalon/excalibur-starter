@@ -157,7 +157,7 @@ describe('Level 3', () => {
   });
 
   it('defines the worm arena on the final ground run', () => {
-    expect(info.boss).toEqual({ left: 175, right: 193, groundRow: 37 });
+    expect(info.boss).toEqual({ left: 40, right: 193, groundRow: 37 });
     expect(info.boss!.right).toBeLessThan(level.width);
     expect(info.boss!.groundRow).toBeLessThan(level.height);
   });

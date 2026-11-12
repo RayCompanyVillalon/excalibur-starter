@@ -334,6 +334,6 @@ export const LEVELS: LevelInfo[] = [
       // Harasses the drop out of the tower.
       { x: 160, y: 36, intervalMs: 2200, speed: 300, chargeMs: 450, delayMs: 1000 },
     ],
-    boss: { left: 175, right: 193, groundRow: 37 },
+    boss: { left: 40, right: 193, groundRow: 37 },
   },
 ];

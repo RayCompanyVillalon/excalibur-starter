@@ -15,7 +15,7 @@ for the lettuce, survives the saw descent, crosses the worm's arena, and escapes
 | Enemies | 9 mushroom men |
 | Hazards | 10 land mines, 33 spike tiles |
 | Moving parts | 4 moving platforms, 7 saws, 3 cannons |
-| Boss arena | columns 175–193, ground row 37 |
+| Boss arena | columns 40–193, ground row 37 |
 
 Level 2 is 180 × 36, so Level 3 is both longer and taller. The extra height is
 used for the tower climb and the descent.
