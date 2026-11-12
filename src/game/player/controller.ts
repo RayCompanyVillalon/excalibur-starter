@@ -11,6 +11,8 @@ export interface Intent {
   jumpHeld: boolean;
   /** Shift pressed this frame. */
   dashPressed: boolean;
+  /** F pressed this frame. */
+  parryPressed: boolean;
 }
 
 export interface PlayerState {
@@ -29,6 +31,12 @@ export interface PlayerState {
   dashDir: 1 | -1;
   /** One air dash per airtime, refreshed when the player touches ground. */
   airDashReady: boolean;
+  /** Milliseconds of active parry window left; 0 means not parrying. */
+  parryMsLeft: number;
+  /** Milliseconds before another parry is allowed. */
+  parryCooldownMs: number;
+  /** Milliseconds of invulnerability left after a successful parry. */
+  parryGraceMs: number;
 }
 
 /** Build a player standing with its feet at `spawn` (bottom-center). */
@@ -52,6 +60,9 @@ export function createPlayerState(spawn: { x: number; y: number }): PlayerState 
     dashCooldownMs: 0,
     dashDir: 1,
     airDashReady: true,
+    parryMsLeft: 0,
+    parryCooldownMs: 0,
+    parryGraceMs: 0,
   };
 }
 
@@ -68,6 +79,7 @@ export function stepPlayer(
   const dt = dtMs / 1000;
   const cfg = GAME.player;
   const dashCfg = GAME.dash;
+  const parryCfg = GAME.parry;
 
   // Timers. While grounded, coyote time is topped up so a jump is always
   // available; once airborne it counts down.
@@ -77,8 +89,17 @@ export function stepPlayer(
     : Math.max(0, state.jumpBufferMs - dtMs);
   state.dashCooldownMs = Math.max(0, state.dashCooldownMs - dtMs);
   state.dashMsLeft = Math.max(0, state.dashMsLeft - dtMs);
+  state.parryMsLeft = Math.max(0, state.parryMsLeft - dtMs);
+  state.parryCooldownMs = Math.max(0, state.parryCooldownMs - dtMs);
+  state.parryGraceMs = Math.max(0, state.parryGraceMs - dtMs);
   if (state.onGround) {
     state.airDashReady = true;
+  }
+
+  // Start a parry. The window is deliberately short so it rewards timing.
+  if (intent.parryPressed && state.parryCooldownMs <= 0) {
+    state.parryMsLeft = parryCfg.windowMs;
+    state.parryCooldownMs = parryCfg.cooldownMs;
   }
 
   if (intent.moveX !== 0) {
@@ -170,4 +191,13 @@ export function bouncePlayer(state: PlayerState, speed: number): void {
   state.jumpHeld = false;
   state.coyoteMs = 0;
   state.jumpBufferMs = 0;
+}
+
+/**
+ * Consume the parry window after it connects and grant a short grace period so
+ * the player is not immediately hit by the same hazard again.
+ */
+export function resolveParry(state: PlayerState): void {
+  state.parryMsLeft = 0;
+  state.parryGraceMs = GAME.parry.graceMs;
 }

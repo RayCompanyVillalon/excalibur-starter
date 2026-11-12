@@ -37,6 +37,24 @@ export const GAME = {
     /** Delay before another dash can start, in ms. */
     cooldownMs: 420,
   },
+  parry: {
+    /** How long the active parry window stays open after pressing F, in ms. */
+    windowMs: 170,
+    /** Delay before F can be pressed again, in ms. */
+    cooldownMs: 650,
+    /** Invulnerability granted after a successful parry, in ms. */
+    graceMs: 300,
+    /** Extra reach around the player's body when checking for threats, in px. */
+    reachPx: 10,
+    /** Horizontal launch speed for a parried mushroom, in px/s. */
+    flingSpeed: 420,
+    /** Upward launch speed for a parried mushroom, in px/s. */
+    flingLift: 340,
+    /** How long a flung mushroom stays in the air before vanishing, in ms. */
+    flingMs: 900,
+    /** Reflected cannon shots travel this much faster than the original. */
+    reflectMultiplier: 1.15,
+  },
   camera: {
     deadzone: { x: 60, y: 40 },
     /** Exponential smoothing rate, in 1/seconds. */

@@ -72,6 +72,15 @@ export class LandMine extends Actor {
     this.sprite.tint = Color.fromHex(GAME.colors.landMineTrigger);
   }
 
+  /** A parry pops the mine harmlessly instead of detonating it. */
+  disarm(): void {
+    if (this._triggered) {
+      return;
+    }
+    this._triggered = true;
+    this.kill();
+  }
+
   /** Re-arm the mine for a fresh run. */
   reset(): void {
     this._triggered = false;

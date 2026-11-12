@@ -56,6 +56,33 @@ function dashStreak(): ImageSource {
   return dashStreakSource;
 }
 
+/** A cyan ring that flashes outward when a parry connects. */
+let parryRingSource: ImageSource | null = null;
+function parryRing(): ImageSource {
+  if (!parryRingSource) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('2D canvas context unavailable');
+    }
+    ctx.imageSmoothingEnabled = false;
+    ctx.strokeStyle = '#8fe6ff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(32, 32, 27, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(150, 230, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(32, 32, 20, 0, Math.PI * 2);
+    ctx.stroke();
+    parryRingSource = ImageSource.fromHtmlCanvasElement(canvas);
+  }
+  return parryRingSource;
+}
+
 export class LevelScene extends Scene {
   private level!: LevelData;
   private levelInfo!: LevelInfo;
@@ -83,6 +110,7 @@ export class LevelScene extends Scene {
   private bossEnragedShown = false;
   private dashTrail: { actor: Actor; lifeMs: number }[] = [];
   private dashTrailTimer = 0;
+  private parryRings: { actor: Actor; lifeMs: number }[] = [];
 
   override onInitialize(): void {
     // Browsers only allow audio after a gesture, so start the loop on the
@@ -107,6 +135,7 @@ export class LevelScene extends Scene {
   private loadLevel(index: number): void {
     this.clearEntities();
     this.clearDashTrail();
+    this.clearParryRings();
     this.spikes = [];
     this.mushrooms = [];
     this.landMines = [];
@@ -196,7 +225,7 @@ export class LevelScene extends Scene {
     }
 
     const intent = readIntent(keyboard);
-    if (intent.moveX !== 0 || intent.jumpPressed || intent.dashPressed) {
+    if (intent.moveX !== 0 || intent.jumpPressed || intent.dashPressed || intent.parryPressed) {
       this.hud.startTimer();
     }
     this.hud.tickTimer();
@@ -243,6 +272,8 @@ export class LevelScene extends Scene {
       return;
     }
 
+    this.checkParryContact();
+
     if (this.checkSpikeContact()) return;
     if (this.checkSawContact()) return;
     if (this.checkProjectileContact()) return;
@@ -267,6 +298,15 @@ export class LevelScene extends Scene {
   }
 
   override onPostUpdate(_engine: Engine, elapsed: number): void {
+    this.updateParryRings(elapsed);
+
+    if (this.player.parryInvulnerable) {
+      // Flicker the sprite while the post-parry grace window is active.
+      this.player.graphics.opacity = Math.floor(elapsed / 55) % 2 === 0 ? 0.35 : 1;
+    } else {
+      this.player.graphics.opacity = 1;
+    }
+
     if (this.respawning) {
       this.respawnTimer -= elapsed;
       if (this.respawnTimer <= 0) {
@@ -303,6 +343,7 @@ export class LevelScene extends Scene {
           `item  ${this.ingredientCollected ? '✓' : '✗'} ${this.levelInfo.ingredient}`,
           `time  ${formatTime(this.hud.timeMs)}`,
           `shots ${this.projectiles.length}`,
+          `parry ${this.player.parrying ? 'active' : this.player.parryInvulnerable ? 'grace' : '—'}`,
           `boss  ${this.wormBoss ? (this.wormBoss.isDangerous ? 'surface!' : 'burrowed') : '—'}`,
         ].join('\n'),
       );
@@ -413,6 +454,43 @@ export class LevelScene extends Scene {
     this.dashTrailTimer = 0;
   }
 
+  private spawnParryRing(): void {
+    const center = this.playerCenter();
+    const actor = new Actor({
+      pos: new Vector(center.x, center.y),
+      anchor: new Vector(0.5, 0.5),
+      width: 64,
+      height: 64,
+      z: 11,
+    });
+    const sprite = new Sprite({ image: parryRing() });
+    actor.graphics.use(sprite);
+    this.add(actor);
+    this.parryRings.push({ actor, lifeMs: 200 });
+  }
+
+  private updateParryRings(elapsed: number): void {
+    for (const ring of this.parryRings) {
+      ring.lifeMs -= elapsed;
+      const t = 1 - Math.max(0, ring.lifeMs) / 200;
+      ring.actor.graphics.opacity = Math.max(0, 1 - t) * 0.9;
+      const scale = 0.6 + t * 1.1;
+      ring.actor.graphics.offset = new Vector(-32 * (scale - 1), -32 * (scale - 1));
+      ring.actor.scale.setTo(scale, scale);
+      if (ring.lifeMs <= 0) {
+        ring.actor.kill();
+      }
+    }
+    this.parryRings = this.parryRings.filter((ring) => ring.lifeMs > 0);
+  }
+
+  private clearParryRings(): void {
+    for (const ring of this.parryRings) {
+      ring.actor.kill();
+    }
+    this.parryRings = [];
+  }
+
   private spawnProjectile(shot: Shot): void {
     const projectile = new Projectile(shot);
     this.projectiles.push(projectile);
@@ -423,6 +501,42 @@ export class LevelScene extends Scene {
     for (const projectile of this.projectiles) {
       projectile.advance(elapsed);
       const box = projectile.bounds();
+
+      // Reflected shots explode the first mushroom or cannon they touch.
+      if (projectile.isFriendly) {
+        let hit = false;
+        for (const mushroom of this.mushrooms) {
+          if (!mushroom.isAlive) {
+            continue;
+          }
+          const mbox = {
+            x: mushroom.pos.x - mushroom.width / 2,
+            y: mushroom.pos.y - mushroom.height,
+            width: mushroom.width,
+            height: mushroom.height,
+          };
+          if (overlaps(box, mbox)) {
+            mushroom.fling(this.player.facing);
+            hit = true;
+            break;
+          }
+        }
+        if (!hit) {
+          for (const cannon of this.cannons) {
+            if (!cannon.isDestroyed && overlaps(box, cannon.bounds())) {
+              cannon.destroy();
+              audio.parry();
+              hit = true;
+              break;
+            }
+          }
+        }
+        if (hit) {
+          projectile.kill();
+          continue;
+        }
+      }
+
       const outOfWorld =
         box.x + box.width < -64 ||
         box.x > this.level.widthPx + 64 ||
@@ -685,7 +799,119 @@ export class LevelScene extends Scene {
     };
   }
 
+  private checkParryContact(): void {
+    if (!this.player.parrying) {
+      return;
+    }
+    const box = this.parryBox();
+    const exact = this.player.bounds();
+
+    // Flung mushrooms: launch the first living enemy within reach.
+    for (const mushroom of this.mushrooms) {
+      if (!mushroom.isAlive) {
+        continue;
+      }
+      const mbox = {
+        x: mushroom.pos.x - mushroom.width / 2,
+        y: mushroom.pos.y - mushroom.height,
+        width: mushroom.width,
+        height: mushroom.height,
+      };
+      if (overlaps(box, mbox)) {
+        mushroom.fling(this.player.facing);
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        return;
+      }
+    }
+
+    // Reflected cannonballs: send the first enemy shot back the way it came.
+    for (const projectile of this.projectiles) {
+      if (projectile.isFriendly) {
+        continue;
+      }
+      if (overlaps(box, projectile.bounds())) {
+        projectile.reflect();
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        return;
+      }
+    }
+
+    // Popped land mines: neutralise the first mine within reach.
+    for (const mine of this.landMines) {
+      if (mine.isTriggered) {
+        continue;
+      }
+      const mbox = {
+        x: mine.pos.x - mine.width / 2,
+        y: mine.pos.y - mine.height,
+        width: mine.width,
+        height: mine.height,
+      };
+      if (overlaps(box, mbox)) {
+        mine.disarm();
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        return;
+      }
+    }
+
+    // Knocked-down worm: force a surfaced body back underground.
+    if (this.wormBoss?.isDangerous && this.wormBoss.overlapsWith(box)) {
+      this.wormBoss.forceSubmerge();
+      this.player.resolveParry();
+      audio.parry();
+      this.spawnParryRing();
+      return;
+    }
+
+    // Environmental hazards: negate contact if actually touching.
+    if (this.touchingSpikes(exact) || this.touchingSaws(exact)) {
+      this.player.resolveParry();
+      audio.parry();
+      this.spawnParryRing();
+    }
+  }
+
+  private parryBox(): Aabb {
+    const body = this.player.bounds();
+    const reach = GAME.parry.reachPx;
+    return {
+      x: body.x - reach,
+      y: body.y - reach,
+      width: body.width + reach * 2,
+      height: body.height + reach * 2,
+    };
+  }
+
+  private touchingSpikes(box: Aabb): boolean {
+    for (const spike of this.spikes) {
+      if (
+        overlaps(box, {
+          x: spike.pos.x - spike.width / 2,
+          y: spike.pos.y,
+          width: spike.width,
+          height: spike.height,
+        })
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private touchingSaws(box: Aabb): boolean {
+    return this.saws.some((saw) => overlaps(box, saw.bounds()));
+  }
+
   private checkSpikeContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
     const body = this.player.bounds();
     for (const spike of this.spikes) {
       if (
@@ -704,6 +930,9 @@ export class LevelScene extends Scene {
   }
 
   private checkSawContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
     const body = this.player.bounds();
     for (const saw of this.saws) {
       if (overlaps(body, saw.bounds())) {
@@ -715,8 +944,14 @@ export class LevelScene extends Scene {
   }
 
   private checkProjectileContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
     const body = this.player.bounds();
     for (const projectile of this.projectiles) {
+      if (projectile.isFriendly) {
+        continue;
+      }
       if (overlaps(body, projectile.bounds())) {
         this.killPlayer();
         return true;
@@ -730,6 +965,9 @@ export class LevelScene extends Scene {
    * in which case the mushroom is flattened and the player bounces.
    */
   private checkEnemyContact(prevFeet: number, fallSpeed: number): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
     const body = this.player.bounds();
     const cfg = GAME.enemies.mushroom;
     for (const mushroom of this.mushrooms) {
@@ -761,6 +999,9 @@ export class LevelScene extends Scene {
   }
 
   private checkLandMineContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
     const body = this.player.bounds();
     for (const mine of this.landMines) {
       if (
@@ -782,6 +1023,9 @@ export class LevelScene extends Scene {
   }
 
   private checkWormContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
     if (this.wormBoss && this.wormBoss.overlapsWith(this.player.bounds())) {
       this.killPlayer();
       return true;
@@ -853,6 +1097,7 @@ export class LevelScene extends Scene {
     this.wormBoss?.reset();
     this.clearProjectiles();
     this.clearDashTrail();
+    this.clearParryRings();
     this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
 
     this.bossIntroShown = false;

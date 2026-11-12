@@ -1,6 +1,7 @@
 import { Actor, ImageSource, Sprite, Vector } from 'excalibur';
 
 import { GAME } from '../config';
+import type { Aabb } from '../physics/aabb';
 import type { CannonSpec } from '../level/levels';
 
 export interface Shot {
@@ -85,6 +86,65 @@ function drawCannon(charged: boolean): HTMLCanvasElement {
   return canvas;
 }
 
+/** Draw a blown-apart cannon barrel and smoke for a destroyed turret. */
+function drawWreckedCannon(): HTMLCanvasElement {
+  const width = 44;
+  const height = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Tilted, scorched base plate.
+  ctx.fillStyle = '#15191d';
+  ctx.fillRect(cx - 14, cy - 8, 24, 18);
+  ctx.fillStyle = '#2a3036';
+  ctx.fillRect(cx - 12, cy - 6, 20, 12);
+
+  // Broken barrel, bent downward.
+  ctx.save();
+  ctx.translate(cx + 2, cy + 2);
+  ctx.rotate(0.6);
+  ctx.fillStyle = '#3a4248';
+  ctx.fillRect(-3, -6, 20, 11);
+  ctx.fillStyle = '#14181c';
+  ctx.fillRect(-3, 2, 20, 3);
+  ctx.restore();
+
+  // Scorch marks and cracks.
+  ctx.fillStyle = '#0a0d10';
+  ctx.beginPath();
+  ctx.ellipse(cx - 1, cy + 6, 9, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#6c7780';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, cy - 6);
+  ctx.lineTo(cx - 2, cy - 2);
+  ctx.stroke();
+
+  // Smoke puffs.
+  for (const [dx, dy, r] of [
+    [10, -12, 3.5],
+    [16, -16, 4],
+    [5, -18, 3],
+  ] as const) {
+    ctx.fillStyle = 'rgba(160, 165, 170, 0.4)';
+    ctx.beginPath();
+    ctx.arc(cx + dx, cy + dy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  return canvas;
+}
+
 /**
  * A wall cannon that telegraphs, then fires a projectile. It can fire in a
  * fixed direction or aim at the player at the moment it starts charging.
@@ -96,6 +156,7 @@ export class Cannon extends Actor {
   private chargeLeftMs = 0;
   private charging = false;
   private aim: AimPoint = { x: -1, y: 0 };
+  private _destroyed = false;
 
   constructor(spec: CannonSpec) {
     const tile = GAME.world.tile;
@@ -112,6 +173,7 @@ export class Cannon extends Actor {
 
     this.graphics.add('idle', new Sprite({ image: ImageSource.fromHtmlCanvasElement(drawCannon(false)) }));
     this.graphics.add('charged', new Sprite({ image: ImageSource.fromHtmlCanvasElement(drawCannon(true)) }));
+    this.graphics.add('wrecked', new Sprite({ image: ImageSource.fromHtmlCanvasElement(drawWreckedCannon()) }));
     this.graphics.use('idle');
 
     if (this.fixedDir) {
@@ -119,8 +181,34 @@ export class Cannon extends Actor {
     }
   }
 
+  get isDestroyed(): boolean {
+    return this._destroyed;
+  }
+
+  bounds(): Aabb {
+    return {
+      x: this.pos.x - this.width / 2,
+      y: this.pos.y - this.height / 2,
+      width: this.width,
+      height: this.height,
+    };
+  }
+
+  /** Blow the cannon up after a reflected shot hits it. */
+  destroy(): void {
+    if (this._destroyed) {
+      return;
+    }
+    this._destroyed = true;
+    this.charging = false;
+    this.graphics.use('wrecked');
+  }
+
   /** Advance timers; returns a shot to spawn on the frame it fires. */
   advance(dtMs: number, target: AimPoint): Shot | null {
+    if (this._destroyed) {
+      return null;
+    }
     if (!this.charging) {
       this.cooldownMs -= dtMs;
       if (this.cooldownMs <= 0) {
@@ -152,6 +240,7 @@ export class Cannon extends Actor {
   }
 
   reset(): void {
+    this._destroyed = false;
     this.cooldownMs = this.spec.delayMs ?? 700;
     this.chargeLeftMs = 0;
     this.charging = false;

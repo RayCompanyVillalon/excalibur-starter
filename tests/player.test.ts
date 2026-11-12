@@ -4,6 +4,7 @@ import { aabb } from '../src/game/physics/aabb';
 import {
   bouncePlayer,
   createPlayerState,
+  resolveParry,
   stepPlayer,
   type Intent,
   type PlayerState,
@@ -13,7 +14,7 @@ const DT = 1000 / 60;
 const GROUND = aabb(0, 100, 2000, 40);
 const SPAWN = { x: 100, y: 100 };
 
-const IDLE: Intent = { moveX: 0, jumpPressed: false, jumpHeld: false, dashPressed: false };
+const IDLE: Intent = { moveX: 0, jumpPressed: false, jumpHeld: false, dashPressed: false, parryPressed: false };
 
 /** A player resting on the ground with coyote time topped up. */
 function grounded(): PlayerState {
@@ -34,7 +35,7 @@ function airborne(y: number, vy = 0): PlayerState {
 describe('stepPlayer', () => {
   it('accelerates to the run speed', () => {
     const state = grounded();
-    const run: Intent = { moveX: 1, jumpPressed: false, jumpHeld: false, dashPressed: false };
+    const run: Intent = { moveX: 1, jumpPressed: false, jumpHeld: false, dashPressed: false, parryPressed: false };
 
     for (let i = 0; i < 60; i += 1) {
       stepPlayer(state, run, [GROUND], DT);
@@ -61,7 +62,7 @@ describe('stepPlayer', () => {
 
   it('jumps from the ground', () => {
     const state = grounded();
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [GROUND], DT);
 
     expect(state.body.vy).toBeLessThan(-GAME.player.jumpSpeed + 100);
     expect(state.onGround).toBe(false);
@@ -69,10 +70,10 @@ describe('stepPlayer', () => {
 
   it('cuts the jump short when the button is released', () => {
     const state = grounded();
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [GROUND], DT);
     const peakSpeed = state.body.vy;
 
-    stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: false, dashPressed: false }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: false, dashPressed: false, parryPressed: false }, [GROUND], DT);
 
     expect(state.body.vy).toBeGreaterThan(peakSpeed);
     expect(state.body.vy).toBeGreaterThan(-GAME.player.jumpSpeed * 0.6);
@@ -86,7 +87,7 @@ describe('stepPlayer', () => {
     stepPlayer(state, IDLE, [], 50);
     expect(state.coyoteMs).toBeGreaterThan(0);
 
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [], DT);
     expect(state.body.vy).toBeLessThan(0);
   });
 
@@ -94,19 +95,19 @@ describe('stepPlayer', () => {
     const state = airborne(0);
     state.coyoteMs = 0;
 
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [], DT);
 
     expect(state.body.vy).toBeGreaterThan(0);
   });
 
   it('queues a jump pressed just before landing (jump buffer)', () => {
     const state = airborne(100 - GAME.player.height - 5);
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [GROUND], DT);
     expect(state.jumpBufferMs).toBeGreaterThan(0);
 
     let jumped = false;
     for (let i = 0; i < 20 && !jumped; i += 1) {
-      stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: true, dashPressed: false }, [GROUND], DT);
+      stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: true, dashPressed: false, parryPressed: false }, [GROUND], DT);
       if (state.body.vy < 0) {
         jumped = true;
       }
@@ -133,13 +134,13 @@ describe('dash', () => {
     moveX: 1,
     jumpPressed: false,
     jumpHeld: false,
-    dashPressed: true,
+    dashPressed: true, parryPressed: false,
   };
   const RUN: Intent = {
     moveX: 1,
     jumpPressed: false,
     jumpHeld: false,
-    dashPressed: false,
+    dashPressed: false, parryPressed: false,
   };
 
   it('bursts to dash speed and stays flat', () => {
@@ -228,11 +229,55 @@ describe('dash', () => {
     left.facing = 1;
     stepPlayer(
       left,
-      { moveX: -1, jumpPressed: false, jumpHeld: false, dashPressed: true },
+      { moveX: -1, jumpPressed: false, jumpHeld: false, dashPressed: true, parryPressed: false },
       [GROUND],
       DT,
     );
     expect(left.dashDir).toBe(-1);
+  });
+});
+
+describe('parry', () => {
+  const PARRY_START: Intent = {
+    moveX: 0,
+    jumpPressed: false,
+    jumpHeld: false,
+    dashPressed: false,
+    parryPressed: true,
+  };
+
+  it('opens a parry window on F press', () => {
+    const state = grounded();
+    stepPlayer(state, PARRY_START, [], DT);
+    expect(state.parryMsLeft).toBeGreaterThan(0);
+    expect(state.parryCooldownMs).toBeGreaterThan(0);
+  });
+
+  it('closes the window after the duration', () => {
+    const state = grounded();
+    stepPlayer(state, PARRY_START, [], DT);
+    for (let i = 0; i < 15; i += 1) {
+      stepPlayer(state, IDLE, [], DT);
+    }
+    expect(state.parryMsLeft).toBe(0);
+  });
+
+  it('starts a cooldown so parry cannot be spammed', () => {
+    const state = grounded();
+    stepPlayer(state, PARRY_START, [], DT);
+    // Cooldown is set in the same frame as the window opens.
+    expect(state.parryCooldownMs).toBeGreaterThan(0);
+    // A second press during the cooldown should be ignored.
+    stepPlayer(state, PARRY_START, [], DT);
+    expect(state.parryMsLeft).toBeCloseTo(GAME.parry.windowMs - DT, -1);
+  });
+
+  it('resolveParry consumes the window and grants grace', () => {
+    const state = grounded();
+    stepPlayer(state, PARRY_START, [], DT);
+    resolveParry(state);
+    expect(state.parryMsLeft).toBe(0);
+    expect(state.parryGraceMs).toBe(GAME.parry.graceMs);
   });
 });
 

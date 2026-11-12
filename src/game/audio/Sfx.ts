@@ -71,6 +71,13 @@ class AudioManager {
     }
     void Sounds.collect.play();
   }
+
+  parry(): void {
+    if (this.muted) {
+      return;
+    }
+    void Sounds.parry.play();
+  }
 }
 
 export const audio = new AudioManager();

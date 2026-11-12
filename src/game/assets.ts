@@ -43,4 +43,5 @@ export const Sounds = {
     playbackRate: 0.8,
   }),
   collect: new Sound({ paths: [jump1Url], volume: 0.5, duration: 0.3 }),
+  parry: new Sound({ paths: [jump2Url], volume: 0.5, duration: 0.18, playbackRate: 1.7 }),
 };

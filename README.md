@@ -21,6 +21,7 @@ run.
 | Move | `A` / `D` or `←` / `→` |
 | Jump | `Space`, `W` or `↑` (hold for height) |
 | Dash | `Shift` (one air dash per jump) |
+| Parry | `F` (timed ~170 ms window, ~650 ms cooldown) |
 | Stomp | Land on a mushroom's cap |
 | Next level | `N` (after the ingredient is secured) |
 | Respawn / restart run | `R` |
@@ -192,6 +193,19 @@ it crisp.
 - split into 2048 px-wide chunks, keeping each texture under the 4096 px GPU limit
   while still being only a handful of draw calls.
 
+### Parry
+
+Press `F` for a timed parry (active for ~170 ms, ~650 ms cooldown). Parrying negates
+damage from any source and applies a unique effect:
+
+- **Mushrooms** are launched away, spinning, and disintegrate.
+- **Cannonballs** are reflected back and destroyed or explode into hazards.
+- **Land mines** are safely popped.
+- **The Giant Worm** is forced to submerge early.
+- **Spikes and saws** are negated without adding offense.
+
+A successful parry grants ~300 ms of invulnerability and a brief cyan ring + audio cue.
+
 ### Sound
 
 `src/game/audio/Sfx.ts` routes effects and handles the browser autoplay rules:
@@ -210,7 +224,7 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 
 ## Tests
 
-`pnpm test` runs 84 tests over the engine-free modules:
+`pnpm test` runs 88 tests over the engine-free modules:
 
 - `tests/aabb.test.ts` — overlap edges, containment
 - `tests/kinematic.test.ts` — landing, walls, ceilings, tunnelling, ledges

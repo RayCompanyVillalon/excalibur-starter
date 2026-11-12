@@ -149,6 +149,10 @@ export class Mushroom extends Actor {
   private _alive = true;
   private _squashed = false;
   private squashTimer = 0;
+  private _flung = false;
+  private flungVx = 0;
+  private flungVy = 0;
+  private flungMs = 0;
   private readonly normalSprite: Sprite;
   private readonly squashedSprite: Sprite;
 
@@ -181,6 +185,10 @@ export class Mushroom extends Actor {
     this._alive = true;
     this._squashed = false;
     this.squashTimer = 0;
+    this._flung = false;
+    this.flungVx = 0;
+    this.flungVy = 0;
+    this.flungMs = 0;
     this.graphics.use(this.normalSprite);
     this.graphics.opacity = 1;
     this.pos.setTo(this.spawnX, this.spawnY);
@@ -201,6 +209,24 @@ export class Mushroom extends Actor {
     this.graphics.opacity = 1;
   }
 
+  /**
+   * Launch the mushroom away after a parry. It is no longer a threat, tumbles
+   * through the air, then vanishes.
+   */
+  fling(direction: 1 | -1): void {
+    if (!this._alive) {
+      return;
+    }
+    this._alive = false;
+    this._flung = true;
+    this._squashed = false;
+    this.flungVx = direction * GAME.parry.flingSpeed;
+    this.flungVy = -GAME.parry.flingLift;
+    this.flungMs = GAME.parry.flingMs;
+    this.graphics.use(this.normalSprite);
+    this.graphics.opacity = 1;
+  }
+
   setSolids(solids: readonly Aabb[]): void {
     this.solids = solids;
   }
@@ -218,6 +244,20 @@ export class Mushroom extends Actor {
   }
 
   override onPreUpdate(_engine: any, elapsed: number): void {
+    if (this._flung) {
+      const dt = elapsed / 1000;
+      this.flungVy = Math.min(this.flungVy + GAME.physics.gravity * dt, GAME.physics.maxFallSpeed);
+      this.pos.x += this.flungVx * dt;
+      this.pos.y += this.flungVy * dt;
+      this.rotation += (elapsed / 1000) * 14;
+      this.flungMs -= elapsed;
+      this.graphics.opacity = Math.max(0, this.flungMs / GAME.parry.flingMs);
+      if (this.flungMs <= 0) {
+        this.kill();
+      }
+      return;
+    }
+
     if (this._squashed) {
       this.squashTimer = Math.max(0, this.squashTimer - elapsed);
       this.graphics.opacity = this.squashTimer / GAME.enemies.mushroom.squashMs;

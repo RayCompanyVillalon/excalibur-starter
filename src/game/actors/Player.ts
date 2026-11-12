@@ -13,6 +13,7 @@ import { bodyAabb } from '../physics/kinematic';
 import {
   bouncePlayer,
   createPlayerState,
+  resolveParry,
   stepPlayer,
   type Intent,
   type PlayerState,
@@ -108,6 +109,16 @@ export class Player extends Actor {
     return this.state.dashDir;
   }
 
+  /** True while the parry window is open. */
+  get parrying(): boolean {
+    return this.state.parryMsLeft > 0;
+  }
+
+  /** True while invulnerable from a successful parry. */
+  get parryInvulnerable(): boolean {
+    return this.state.parryGraceMs > 0;
+  }
+
   step(intent: Intent, solids: readonly Aabb[], dtMs: number): void {
     stepPlayer(this.state, intent, solids, dtMs);
     this.sync();
@@ -126,6 +137,11 @@ export class Player extends Actor {
     bouncePlayer(this.state, speed);
     this.sync();
     this.updateAnimation();
+  }
+
+  /** Consume the parry window after a successful parry and grant grace time. */
+  resolveParry(): void {
+    resolveParry(this.state);
   }
 
   freeze(): void {

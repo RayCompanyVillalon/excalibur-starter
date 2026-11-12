@@ -1,5 +1,6 @@
-import { Actor, ImageSource, Sprite, Vector } from 'excalibur';
+import { Actor, Color, ImageSource, Sprite, Vector } from 'excalibur';
 
+import { GAME } from '../config';
 import type { Aabb } from '../physics/aabb';
 import type { Shot } from './Cannon';
 
@@ -34,9 +35,10 @@ function buildOrbCanvas(): HTMLCanvasElement {
 
 /** A straight-flying cannon shot. Contact kills the player. */
 export class Projectile extends Actor {
-  private readonly vx: number;
-  private readonly vy: number;
+  private vx: number;
+  private vy: number;
   private lifeMs = 3000;
+  private friendly = false;
 
   constructor(shot: Shot) {
     super({
@@ -49,6 +51,25 @@ export class Projectile extends Actor {
     this.vx = shot.vx;
     this.vy = shot.vy;
     this.graphics.use(new Sprite({ image: ImageSource.fromHtmlCanvasElement(buildOrbCanvas()) }));
+  }
+
+  /** Turn the shot back the way it came and make it dangerous to the enemy. */
+  reflect(): void {
+    if (this.friendly) {
+      return;
+    }
+    this.friendly = true;
+    this.vx *= -GAME.parry.reflectMultiplier;
+    this.vy *= -GAME.parry.reflectMultiplier;
+    this.lifeMs = 4000;
+    const sprite = this.graphics.current as Sprite | null;
+    if (sprite) {
+      sprite.tint = Color.fromHex('#6ef2ff');
+    }
+  }
+
+  get isFriendly(): boolean {
+    return this.friendly;
   }
 
   advance(dtMs: number): void {

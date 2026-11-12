@@ -250,6 +250,19 @@ export class WormBoss extends Actor {
     this.targetX = x;
   }
 
+  /** A parry knocks the surfaced worm back underground early. */
+  forceSubmerge(): void {
+    if (this.state === 'surface' || this.state === 'warning') {
+      this.state = 'submerging';
+      this.timer = 0;
+      this.strikes += 1;
+      this.firstStrike = false;
+      if (this.strikes >= 2) {
+        this.aggro = true;
+      }
+    }
+  }
+
   override onPreUpdate(_engine: any, elapsed: number): void {
     this.timer += elapsed;
 
