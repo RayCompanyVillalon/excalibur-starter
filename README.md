@@ -5,9 +5,10 @@ A small single-player 2D platformer built with **Excalibur.js 0.32**, **TypeScri
 [NatTuck/drunk-panda](https://github.com/NatTuck/drunk-panda).
 
 The goal is a sandwich speedrun: find the ingredient hidden in each level, then
-reach the exit as fast as possible. Section One (Grassland) is in progress — the
-opening level now spans 140 × 32 tiles with moving islands, saw blades, cannons
-and a clock in the top-right corner.
+reach the exit as fast as possible. Section One (Grassland) is in progress. Level 1
+spans 140 × 32 tiles with moving islands, saw blades and cannons; Level 2 stretches
+to 180 × 36 with mushroom patrols, land mines, a tower of lifts and two gap jumps
+that require the new dash. A clock in the top-right tracks each run.
 
 **Play it:** https://raycompanyvillalon.github.io/excalibur-starter/
 
@@ -17,12 +18,14 @@ and a clock in the top-right corner.
 | --- | --- |
 | Move | `A` / `D` or `←` / `→` |
 | Jump | `Space`, `W` or `↑` (hold for height) |
+| Dash | `Shift` (one air dash per jump) |
+| Next level | `N` (after the ingredient is secured) |
 | Respawn / restart run | `R` |
 | Mute / unmute | `M` |
 | Debug readout | `F1` |
 
-The clock starts on your first movement input. Dying or pressing `R` resets the
-run, and your best time for the level is stored in `localStorage`.
+The clock starts on your first movement, jump or dash input. Dying or pressing `R`
+resets the run, and your best time for the level is stored in `localStorage`.
 
 ## Run it
 
@@ -49,11 +52,11 @@ src/
   game/
     config.ts                 every tunable: gravity, run speed, jump, camera, colors
     math.ts                   pure helpers: clamp, approach, lerp, damp
-    input/InputMap.ts         keyboard state -> { moveX, jumpPressed, jumpHeld }
+    input/InputMap.ts         keyboard state -> { moveX, jumpPressed, jumpHeld, dashPressed }
     audio/Sfx.ts              music start, jump/step/land/death routing, mute
     physics/aabb.ts           AABB overlap / containment helpers
     physics/kinematic.ts      sub-stepped, axis-separated move + collide
-    player/controller.ts      pure player state machine (run, gravity, jump)
+    player/controller.ts      pure player state machine (run, gravity, jump, dash)
     level/level.ts            ASCII map -> solids, spawn, goal, hazards
     level/levels.ts           level maps + moving-platform/saw/cannon specs
     level/LevelScene.ts       builds the world, hazards, camera, timer, respawn
@@ -84,7 +87,11 @@ Jump feel lives in `src/game/player/controller.ts`:
 - gravity `2200 px/s²`, terminal fall `900 px/s`;
 - jump impulse `780 px/s` (~4.3 tiles of height);
 - releasing the button early cuts upward velocity to 45 % (variable height);
-- **coyote time** 100 ms and **jump buffering** 120 ms.
+- **coyote time** 100 ms and **jump buffering** 120 ms;
+- **dash** `Shift` bursts to 700 px/s for 170 ms with a 420 ms cooldown. Gravity is
+  suspended for the burst, so a jump + dash keeps its height and clears a 7-tile
+  gap. You get one air dash per airtime; landing refreshes it, and hitting a wall or
+  ceiling ends the dash early. A cyan streak trails the dash.
 
 All of it is tunable in `src/game/config.ts`.
 
@@ -110,9 +117,24 @@ Moving platforms are advanced by the scene before the player step, so a player
 standing on one is carried by the platform's frame delta. The per-frame solids
 list is the static terrain plus the current platform rectangles.
 
+Level 2 — Mushroom Men — is the difficulty step up:
+
+1. a spike-and-mine opening that immediately asks for clean jumps;
+2. stepping ledges over a minefield;
+3. a 7-tile dash chasm, then a shuttle island over a second pit;
+4. a cannon corridor with a sweeping saw, mushroom patrols, spikes and a mine;
+5. a three-lift tower climb to the tomato, with a saw crossing the gaps;
+6. a saw-and-mushroom descent across floating islands;
+7. the final 7-tile dash gap, a spike-lined valley and the summit door.
+
+Append `?level=2` to the URL to boot straight into Level 2 for playtesting. After
+securing the ingredient, `N` loads the next level.
+
 ### Hazards
 
 - **Spikes** kill on contact and are drawn from the C32 palette as red brick teeth.
+- **Mushroom men** patrol the flat run they spawn on, turning at the edges.
+- **Land mines** sit on the surface and detonate on contact; they re-arm on respawn.
 - **Moving platforms** ping-pong on a triangle wave (`periodMs`), so they are
   periodic and learnable rather than random.
 - **Saws** sweep a fixed track and kill on contact.
@@ -159,13 +181,13 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 
 ## Tests
 
-`pnpm test` runs 66 tests over the engine-free modules:
+`pnpm test` runs 76 tests over the engine-free modules:
 
 - `tests/aabb.test.ts` — overlap edges, containment
 - `tests/kinematic.test.ts` — landing, walls, ceilings, tunnelling, ledges
-- `tests/player.test.ts` — run speed, gravity, jump, jump cut, coyote, buffer
+- `tests/player.test.ts` — run speed, gravity, jump, jump cut, coyote, buffer, dash
 - `tests/camera.test.ts` — deadzone, clamping, small worlds
-- `tests/level.test.ts` — parsing, spawn/goal, run merging, validation
+- `tests/level.test.ts` — parsing, spawn/goal, run merging, validation, Level 2
 - `tests/terrain.test.ts` — autotile neighbour rules, decoration stability
 - `tests/math.test.ts` — clamp, approach, deadzone, ping-pong
 - `tests/time.test.ts` — speedrun clock formatting

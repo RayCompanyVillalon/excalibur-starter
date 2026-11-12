@@ -12,7 +12,7 @@ const DT = 1000 / 60;
 const GROUND = aabb(0, 100, 2000, 40);
 const SPAWN = { x: 100, y: 100 };
 
-const IDLE: Intent = { moveX: 0, jumpPressed: false, jumpHeld: false };
+const IDLE: Intent = { moveX: 0, jumpPressed: false, jumpHeld: false, dashPressed: false };
 
 /** A player resting on the ground with coyote time topped up. */
 function grounded(): PlayerState {
@@ -33,7 +33,7 @@ function airborne(y: number, vy = 0): PlayerState {
 describe('stepPlayer', () => {
   it('accelerates to the run speed', () => {
     const state = grounded();
-    const run: Intent = { moveX: 1, jumpPressed: false, jumpHeld: false };
+    const run: Intent = { moveX: 1, jumpPressed: false, jumpHeld: false, dashPressed: false };
 
     for (let i = 0; i < 60; i += 1) {
       stepPlayer(state, run, [GROUND], DT);
@@ -60,7 +60,7 @@ describe('stepPlayer', () => {
 
   it('jumps from the ground', () => {
     const state = grounded();
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [GROUND], DT);
 
     expect(state.body.vy).toBeLessThan(-GAME.player.jumpSpeed + 100);
     expect(state.onGround).toBe(false);
@@ -68,10 +68,10 @@ describe('stepPlayer', () => {
 
   it('cuts the jump short when the button is released', () => {
     const state = grounded();
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [GROUND], DT);
     const peakSpeed = state.body.vy;
 
-    stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: false }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: false, dashPressed: false }, [GROUND], DT);
 
     expect(state.body.vy).toBeGreaterThan(peakSpeed);
     expect(state.body.vy).toBeGreaterThan(-GAME.player.jumpSpeed * 0.6);
@@ -85,7 +85,7 @@ describe('stepPlayer', () => {
     stepPlayer(state, IDLE, [], 50);
     expect(state.coyoteMs).toBeGreaterThan(0);
 
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true }, [], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [], DT);
     expect(state.body.vy).toBeLessThan(0);
   });
 
@@ -93,19 +93,19 @@ describe('stepPlayer', () => {
     const state = airborne(0);
     state.coyoteMs = 0;
 
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true }, [], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [], DT);
 
     expect(state.body.vy).toBeGreaterThan(0);
   });
 
   it('queues a jump pressed just before landing (jump buffer)', () => {
     const state = airborne(100 - GAME.player.height - 5);
-    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true }, [GROUND], DT);
+    stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false }, [GROUND], DT);
     expect(state.jumpBufferMs).toBeGreaterThan(0);
 
     let jumped = false;
     for (let i = 0; i < 20 && !jumped; i += 1) {
-      stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: true }, [GROUND], DT);
+      stepPlayer(state, { moveX: 0, jumpPressed: false, jumpHeld: true, dashPressed: false }, [GROUND], DT);
       if (state.body.vy < 0) {
         jumped = true;
       }
@@ -124,5 +124,113 @@ describe('stepPlayer', () => {
     expect(state.onGround).toBe(true);
     expect(state.body.vy).toBe(0);
     expect(state.body.y).toBe(100 - GAME.player.height);
+  });
+});
+
+describe('dash', () => {
+  const DASH_START: Intent = {
+    moveX: 1,
+    jumpPressed: false,
+    jumpHeld: false,
+    dashPressed: true,
+  };
+  const RUN: Intent = {
+    moveX: 1,
+    jumpPressed: false,
+    jumpHeld: false,
+    dashPressed: false,
+  };
+
+  it('bursts to dash speed and stays flat', () => {
+    const state = grounded();
+    const startY = state.body.y;
+
+    stepPlayer(state, DASH_START, [GROUND], DT);
+
+    expect(state.body.vx).toBeCloseTo(GAME.dash.speed, 0);
+    expect(state.body.vy).toBe(0);
+    expect(state.body.y).toBeCloseTo(startY, 5);
+    expect(state.dashMsLeft).toBeGreaterThan(0);
+  });
+
+  it('ignores gravity for the whole dash', () => {
+    const state = grounded();
+    const startY = state.body.y;
+    stepPlayer(state, DASH_START, [GROUND], DT);
+
+    for (let i = 0; i < 8; i += 1) {
+      stepPlayer(state, RUN, [GROUND], DT);
+    }
+
+    expect(state.dashMsLeft).toBeGreaterThan(0);
+    expect(state.body.y).toBeCloseTo(startY, 5);
+  });
+
+  it('covers about three and a half tiles on the ground', () => {
+    const state = grounded();
+    const startX = state.body.x;
+    stepPlayer(state, DASH_START, [GROUND], DT);
+    for (let i = 0; i < 9; i += 1) {
+      stepPlayer(state, RUN, [GROUND], DT);
+    }
+
+    expect(state.body.x - startX).toBeGreaterThan(100);
+    expect(state.body.x - startX).toBeLessThan(130);
+  });
+
+  it('respects the cooldown', () => {
+    const state = grounded();
+    stepPlayer(state, DASH_START, [GROUND], DT);
+    for (let i = 0; i < 12; i += 1) {
+      stepPlayer(state, RUN, [GROUND], DT);
+    }
+    expect(state.dashMsLeft).toBe(0);
+    expect(state.dashCooldownMs).toBeGreaterThan(0);
+
+    // A second press during the cooldown does nothing.
+    stepPlayer(state, DASH_START, [GROUND], DT);
+    expect(state.dashMsLeft).toBe(0);
+
+    // Once it expires the dash is available again.
+    state.dashCooldownMs = 0;
+    stepPlayer(state, DASH_START, [GROUND], DT);
+    expect(state.dashMsLeft).toBeGreaterThan(0);
+  });
+
+  it('allows one air dash per airtime', () => {
+    const state = airborne(0);
+    stepPlayer(state, DASH_START, [], DT);
+    expect(state.dashMsLeft).toBeGreaterThan(0);
+    expect(state.airDashReady).toBe(false);
+
+    for (let i = 0; i < 12; i += 1) {
+      stepPlayer(state, RUN, [], DT);
+    }
+    state.dashCooldownMs = 0;
+
+    // No second dash until the player touches ground again.
+    stepPlayer(state, DASH_START, [], DT);
+    expect(state.dashMsLeft).toBe(0);
+
+    state.onGround = true;
+    state.body.y = 100 - GAME.player.height;
+    stepPlayer(state, IDLE, [GROUND], DT);
+    expect(state.airDashReady).toBe(true);
+  });
+
+  it('lets a dash direction follow the input, or the facing when idle', () => {
+    const right = grounded();
+    stepPlayer(right, DASH_START, [GROUND], DT);
+    expect(right.dashDir).toBe(1);
+
+    const left = grounded();
+    left.facing = 1;
+    stepPlayer(
+      left,
+      { moveX: -1, jumpPressed: false, jumpHeld: false, dashPressed: true },
+      [GROUND],
+      DT,
+    );
+    expect(left.dashDir).toBe(-1);
   });
 });

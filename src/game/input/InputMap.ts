@@ -14,7 +14,10 @@ export function readIntent(keyboard: Keyboard): Intent {
     keyboard.wasPressed(Keys.W) ||
     keyboard.wasPressed(Keys.Up);
 
+  const dashPressed =
+    keyboard.wasPressed(Keys.ShiftLeft) || keyboard.wasPressed(Keys.ShiftRight);
+
   // A press counts as held for that frame, so a jump can't be cut before it
   // has actually left the ground.
-  return { moveX, jumpPressed, jumpHeld: jumpHeld || jumpPressed };
+  return { moveX, jumpPressed, jumpHeld: jumpHeld || jumpPressed, dashPressed };
 }

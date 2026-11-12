@@ -69,6 +69,68 @@ export function buildBreadCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A ripe tomato: Level 2's ingredient. */
+export function buildTomatoCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 34;
+  canvas.height = 26;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  // Pickup glow.
+  ctx.fillStyle = 'rgba(255, 120, 90, 0.16)';
+  ctx.beginPath();
+  ctx.ellipse(17, 13, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body.
+  const skin = ctx.createRadialGradient(12, 9, 2, 17, 14, 15);
+  skin.addColorStop(0, '#ff7b5c');
+  skin.addColorStop(0.55, '#e0342c');
+  skin.addColorStop(1, '#941c1b');
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(17, 14, 12.5, 10.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Highlight.
+  ctx.fillStyle = 'rgba(255, 214, 190, 0.5)';
+  ctx.beginPath();
+  ctx.ellipse(12, 10, 4.5, 2.6, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Calyx (green star).
+  ctx.fillStyle = '#3f9c46';
+  for (let i = 0; i < 5; i += 1) {
+    const angle = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(17, 5);
+    ctx.lineTo(17 + Math.cos(angle - 0.28) * 8, 5 + Math.sin(angle - 0.28) * 5);
+    ctx.lineTo(17 + Math.cos(angle) * 10, 5 + Math.sin(angle) * 6);
+    ctx.lineTo(17 + Math.cos(angle + 0.28) * 8, 5 + Math.sin(angle + 0.28) * 5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = '#2c6f32';
+  ctx.fillRect(16, 2, 2, 4);
+
+  // Bottom shadow.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.beginPath();
+  ctx.ellipse(17, 24.5, 10, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  return canvas;
+}
+
+/** Pick the ingredient art for the current level. */
+export function buildIngredientCanvas(ingredient: string): HTMLCanvasElement {
+  return ingredient.toLowerCase() === 'tomato' ? buildTomatoCanvas() : buildBreadCanvas();
+}
+
 /**
  * A floating collectible item — the sandwich ingredient for this level.
  */
@@ -90,7 +152,9 @@ export class Collectible extends Actor {
     this.ingredient = ingredient;
     this.baseY = pos.y - GAME.collectible.floatPx;
     this.pos.y = this.baseY;
-    this.graphics.use(new Sprite({ image: ImageSource.fromHtmlCanvasElement(buildBreadCanvas()) }));
+    this.graphics.use(
+      new Sprite({ image: ImageSource.fromHtmlCanvasElement(buildIngredientCanvas(ingredient)) }),
+    );
   }
 
   get isCollected(): boolean {

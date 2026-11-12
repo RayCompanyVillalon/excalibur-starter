@@ -92,6 +92,16 @@ export class Player extends Actor {
     return this.state.facing;
   }
 
+  /** True while a dash burst is active. */
+  get dashing(): boolean {
+    return this.state.dashMsLeft > 0;
+  }
+
+  /** Direction of the active dash. */
+  get dashDir(): 1 | -1 {
+    return this.state.dashDir;
+  }
+
   step(intent: Intent, solids: readonly Aabb[], dtMs: number): void {
     stepPlayer(this.state, intent, solids, dtMs);
     this.sync();

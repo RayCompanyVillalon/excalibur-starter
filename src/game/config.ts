@@ -29,6 +29,14 @@ export const GAME = {
     coyoteMs: 100,
     jumpBufferMs: 120,
   },
+  dash: {
+    /** Horizontal speed while dashing, in px/s. */
+    speed: 700,
+    /** How long a dash lasts, in ms. */
+    durationMs: 170,
+    /** Delay before another dash can start, in ms. */
+    cooldownMs: 420,
+  },
   camera: {
     deadzone: { x: 60, y: 40 },
     /** Exponential smoothing rate, in 1/seconds. */

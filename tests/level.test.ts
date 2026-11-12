@@ -73,6 +73,52 @@ describe('parseLevel', () => {
   });
 });
 
+describe('Level 2', () => {
+  const info = LEVELS[1]!;
+  const level = parseLevel(info.map);
+
+  it('is longer and taller than Level 1', () => {
+    expect(level.width).toBe(180);
+    expect(level.height).toBe(36);
+    expect(info.ingredient).toBe('Tomato');
+  });
+
+  it('carries the tomato above the tower ledge', () => {
+    expect(level.collectibles).toHaveLength(1);
+    expect(level.collectibles[0]).toEqual({
+      x: 122.5 * GAME.world.tile,
+      y: 7.5 * GAME.world.tile,
+    });
+    expect(level.spikes).toHaveLength(8);
+  });
+
+  it('ships mushrooms, land mines and moving hazards', () => {
+    const count = (marker: string): number =>
+      info.map.reduce(
+        (total, row) => total + [...row].filter((cell) => cell === marker).length,
+        0,
+      );
+
+    expect(count('M')).toBe(8);
+    expect(count('L')).toBe(7);
+    expect(info.platforms?.length).toBe(4);
+    expect(info.saws?.length).toBe(4);
+    expect(info.cannons?.length).toBe(3);
+  });
+
+  it('keeps enemies and mines off the solid tiles', () => {
+    for (let row = 0; row < info.map.length; row += 1) {
+      const line = info.map[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'M' && line[col] !== 'L') {
+          continue;
+        }
+        expect((info.map[row + 1] ?? '')[col]).toBe('#');
+      }
+    }
+  });
+});
+
 describe('parseLevel validation', () => {
   it('pads short rows with air', () => {
     const level = parseLevel(['P.G']);

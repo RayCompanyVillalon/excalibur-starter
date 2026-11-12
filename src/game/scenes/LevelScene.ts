@@ -32,6 +32,30 @@ import { formatTime } from '../ui/time';
 
 const CLOUD_SPACING = 250;
 
+/** A tapered cyan streak used for dash afterimages. */
+let dashStreakSource: ImageSource | null = null;
+function dashStreak(): ImageSource {
+  if (!dashStreakSource) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 46;
+    canvas.height = 12;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('2D canvas context unavailable');
+    }
+    const gradient = ctx.createLinearGradient(0, 0, 46, 0);
+    gradient.addColorStop(0, 'rgba(120, 210, 255, 0)');
+    gradient.addColorStop(0.6, 'rgba(150, 225, 255, 0.55)');
+    gradient.addColorStop(1, 'rgba(220, 245, 255, 0.9)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.ellipse(23, 6, 23, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    dashStreakSource = ImageSource.fromHtmlCanvasElement(canvas);
+  }
+  return dashStreakSource;
+}
+
 export class LevelScene extends Scene {
   private level!: LevelData;
   private levelInfo!: LevelInfo;
@@ -55,6 +79,8 @@ export class LevelScene extends Scene {
   private respawnTimer = 0;
   private respawning = false;
   private goalHintMs = 0;
+  private dashTrail: { actor: Actor; lifeMs: number }[] = [];
+  private dashTrailTimer = 0;
 
   override onInitialize(): void {
     // Browsers only allow audio after a gesture, so start the loop on the
@@ -67,11 +93,18 @@ export class LevelScene extends Scene {
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
 
-    this.loadLevel(this.levelIndex);
+    // `?level=2` boots straight into a level, which is handy for playtesting.
+    const requested = Number(new URLSearchParams(window.location.search).get('level') ?? '1');
+    const startIndex =
+      Number.isInteger(requested) && requested >= 1 && requested <= LEVELS.length
+        ? requested - 1
+        : 0;
+    this.loadLevel(startIndex);
   }
 
   private loadLevel(index: number): void {
     this.clearEntities();
+    this.clearDashTrail();
     this.spikes = [];
     this.mushrooms = [];
     this.landMines = [];
@@ -86,6 +119,7 @@ export class LevelScene extends Scene {
     this.respawnTimer = 0;
     this.stepTimer = 0;
     this.goalHintMs = 0;
+    this.dashTrailTimer = 0;
 
     const info = LEVELS[index];
     if (!info) {
@@ -144,13 +178,21 @@ export class LevelScene extends Scene {
       this.resetRun('Run reset');
       return;
     }
+    if (
+      keyboard.wasPressed(Keys.N) &&
+      this.complete &&
+      this.levelIndex + 1 < LEVELS.length
+    ) {
+      this.loadLevel(this.levelIndex + 1);
+      return;
+    }
 
     if (this.complete || this.respawning) {
       return;
     }
 
     const intent = readIntent(keyboard);
-    if (intent.moveX !== 0 || intent.jumpPressed) {
+    if (intent.moveX !== 0 || intent.jumpPressed || intent.dashPressed) {
       this.hud.startTimer();
     }
     this.hud.tickTimer();
@@ -161,6 +203,7 @@ export class LevelScene extends Scene {
     const wasGrounded = this.player.grounded;
     const fallSpeed = this.player.kinematics.vy;
     this.player.step(intent, this.solids, elapsed);
+    this.updateDashTrail(elapsed);
 
     const grounded = this.player.grounded;
     if (wasGrounded && !grounded && this.player.kinematics.vy < 0) {
@@ -302,6 +345,54 @@ export class LevelScene extends Scene {
       x: this.player.pos.x + this.player.width / 2,
       y: this.player.pos.y + this.player.height / 2,
     };
+  }
+
+  /** Fade out the cyan streaks left behind by a dash. */
+  private updateDashTrail(elapsed: number): void {
+    for (const ghost of this.dashTrail) {
+      ghost.lifeMs -= elapsed;
+      ghost.actor.graphics.opacity = Math.max(0, ghost.lifeMs / 180) * 0.6;
+      if (ghost.lifeMs <= 0) {
+        ghost.actor.kill();
+      }
+    }
+    this.dashTrail = this.dashTrail.filter((ghost) => ghost.lifeMs > 0);
+
+    if (!this.player.dashing) {
+      this.dashTrailTimer = 0;
+      return;
+    }
+
+    this.dashTrailTimer += elapsed;
+    if (this.dashTrailTimer < 40) {
+      return;
+    }
+    this.dashTrailTimer = 0;
+
+    const dir = this.player.dashDir;
+    const actor = new Actor({
+      pos: new Vector(
+        this.player.pos.x + this.player.width / 2 - 23 - dir * 10,
+        this.player.pos.y + this.player.height / 2 - 6,
+      ),
+      anchor: new Vector(0, 0),
+      width: 46,
+      height: 12,
+      z: 9,
+    });
+    const sprite = new Sprite({ image: dashStreak(), opacity: 0.7 });
+    sprite.flipHorizontal = dir < 0;
+    actor.graphics.use(sprite);
+    this.add(actor);
+    this.dashTrail.push({ actor, lifeMs: 180 });
+  }
+
+  private clearDashTrail(): void {
+    for (const ghost of this.dashTrail) {
+      ghost.actor.kill();
+    }
+    this.dashTrail = [];
+    this.dashTrailTimer = 0;
   }
 
   private spawnProjectile(shot: Shot): void {
@@ -494,7 +585,8 @@ export class LevelScene extends Scene {
         let surfaceY = (row + 1) * tile;
         for (let below = row + 1; below < rows.length; below += 1) {
           if ((rows[below] ?? '')[col] === '#') {
-            surfaceY = (below + 1) * tile;
+            // The top face of the first solid tile below the marker.
+            surfaceY = below * tile;
             break;
           }
         }
@@ -538,37 +630,39 @@ export class LevelScene extends Scene {
     this.add(this.wormBoss);
   }
 
-  /** Find the left/right platform bounds for patrol at the given tile. */
+  /**
+   * Find the patrol bounds for a mushroom: the flat run at the same surface
+   * height as the marker's column, so enemies never walk into a step.
+   */
   private findPlatformBounds(col: number, row: number): { left: number; right: number } {
     const tile = GAME.world.tile;
     const rows = this.levelInfo.map;
+    const width = Math.max(...rows.map((line) => line.length));
 
-    let platformRow = row + 1;
-    while (platformRow < rows.length && (rows[platformRow] ?? '')[col] !== '#') {
-      platformRow += 1;
-    }
+    const surfaceRow = (column: number): number => {
+      for (let r = row + 1; r < rows.length; r += 1) {
+        if ((rows[r] ?? '')[column] === '#') {
+          return r;
+        }
+      }
+      return -1;
+    };
 
-    if (platformRow >= rows.length) {
+    const surface = surfaceRow(col);
+    if (surface < 0) {
       return { left: (col - 2) * tile, right: (col + 3) * tile };
     }
 
-    const platLine = rows[platformRow] ?? '';
-    let left = 0;
-    let right = platLine.length * tile;
-    let found = false;
-    for (let c = 0; c < platLine.length; c += 1) {
-      if (platLine[c] === '#') {
-        if (!found) {
-          left = c * tile;
-          found = true;
-        }
-        right = (c + 1) * tile;
-      } else if (found) {
-        break;
-      }
+    let left = col;
+    while (left > 0 && surfaceRow(left - 1) === surface) {
+      left -= 1;
+    }
+    let right = col;
+    while (right + 1 < width && surfaceRow(right + 1) === surface) {
+      right += 1;
     }
 
-    return { left, right };
+    return { left: left * tile, right: (right + 1) * tile };
   }
 
   // ─── Collision checks ───────────────────────────────────────────────
@@ -693,8 +787,10 @@ export class LevelScene extends Scene {
     const time = this.hud.stopTimer(true);
     const best = this.hud.bestTimeMs;
     const note = best !== null && best < time ? `best ${formatTime(best)}` : 'new best!';
+    const next =
+      this.levelIndex + 1 < LEVELS.length ? ' · N next level' : ' · R to run again';
     this.hud.toast(
-      `${this.levelInfo.ingredient} secured — ${formatTime(time)} · ${note} · R to run again`,
+      `${this.levelInfo.ingredient} secured — ${formatTime(time)} · ${note}${next}`,
       6000,
     );
   }
@@ -727,7 +823,14 @@ export class LevelScene extends Scene {
     for (const cannon of this.cannons) {
       cannon.reset();
     }
+    for (const mine of this.landMines) {
+      mine.reset();
+    }
+    for (const mushroom of this.mushrooms) {
+      mushroom.reset();
+    }
     this.clearProjectiles();
+    this.clearDashTrail();
     this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
 
     this.hud.resetTimer();
