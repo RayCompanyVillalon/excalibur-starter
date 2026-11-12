@@ -195,6 +195,7 @@ export class Mushroom extends Actor {
     this.dir = -1;
     this.paused = false;
     this.pauseTimer = 0;
+    this.rotation = 0;
   }
 
   /** Flatten the mushroom after the player lands on its head. */
@@ -252,9 +253,7 @@ export class Mushroom extends Actor {
       this.rotation += (elapsed / 1000) * 14;
       this.flungMs -= elapsed;
       this.graphics.opacity = Math.max(0, this.flungMs / GAME.parry.flingMs);
-      if (this.flungMs <= 0) {
-        this.kill();
-      }
+      // Don't kill — respawn needs the actor alive to revive it.
       return;
     }
 

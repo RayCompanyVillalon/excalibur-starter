@@ -144,6 +144,16 @@ export class Player extends Actor {
     resolveParry(this.state);
   }
 
+  /** Snap the player to world coordinates — used by the debug flight tool. */
+  teleport(x: number, y: number): void {
+    this.state.body.x = x;
+    this.state.body.y = y;
+    this.state.body.vx = 0;
+    this.state.body.vy = 0;
+    this.state.onGround = false;
+    this.sync();
+  }
+
   freeze(): void {
     this.state.body.vx = 0;
     this.state.body.vy = 0;

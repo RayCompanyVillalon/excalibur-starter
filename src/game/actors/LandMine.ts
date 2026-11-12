@@ -78,12 +78,13 @@ export class LandMine extends Actor {
       return;
     }
     this._triggered = true;
-    this.kill();
+    this.graphics.opacity = 0;
   }
 
   /** Re-arm the mine for a fresh run. */
   reset(): void {
     this._triggered = false;
     this.sprite.tint = Color.White;
+    this.graphics.opacity = 1;
   }
 }

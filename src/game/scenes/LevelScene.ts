@@ -108,6 +108,7 @@ export class LevelScene extends Scene {
   private goalHintMs = 0;
   private bossIntroShown = false;
   private bossEnragedShown = false;
+  private flightMode = false;
   private dashTrail: { actor: Actor; lifeMs: number }[] = [];
   private dashTrailTimer = 0;
   private parryRings: { actor: Actor; lifeMs: number }[] = [];
@@ -219,6 +220,16 @@ export class LevelScene extends Scene {
       this.loadLevel(this.levelIndex + 1);
       return;
     }
+    if (this.hud.debugOn && keyboard.wasPressed(Keys.K)) {
+      if (this.levelIndex + 1 < LEVELS.length) {
+        this.loadLevel(this.levelIndex + 1);
+      }
+      return;
+    }
+    if (this.hud.debugOn && keyboard.wasPressed(Keys.J)) {
+      this.flightMode = !this.flightMode;
+      this.hud.toast(this.flightMode ? 'Flight: cursor moves player' : 'Flight off', 1200);
+    }
 
     if (this.complete || this.respawning) {
       return;
@@ -242,6 +253,22 @@ export class LevelScene extends Scene {
     if (this.wormBoss?.isEnraged && !this.bossEnragedShown) {
       this.bossEnragedShown = true;
       this.hud.toast('The worm is enraged!', 1400);
+    }
+
+    // Flight mode: click and drag to teleport the player anywhere.
+    if (this.flightMode) {
+      this.updateFlightMode(engine);
+      if (!this.ingredientCollected && this.collectible && !this.collectible.isCollected) {
+        if (overlaps(this.player.bounds(), this.collectibleBounds())) {
+          this.pickupCollectible();
+        }
+      }
+      if (overlaps(this.player.bounds(), this.level.goal)) {
+        if (this.ingredientCollected) {
+          this.completeLevel();
+        }
+      }
+      return;
     }
 
     const wasGrounded = this.player.grounded;
@@ -345,6 +372,8 @@ export class LevelScene extends Scene {
           `shots ${this.projectiles.length}`,
           `parry ${this.player.parrying ? 'active' : this.player.parryInvulnerable ? 'grace' : '—'}`,
           `boss  ${this.wormBoss ? (this.wormBoss.isDangerous ? 'surface!' : 'burrowed') : '—'}`,
+          `flight ${this.flightMode ? 'ON' : 'off'}`,
+          `K     next level`,
         ].join('\n'),
       );
     }
@@ -489,6 +518,17 @@ export class LevelScene extends Scene {
       ring.actor.kill();
     }
     this.parryRings = [];
+  }
+
+  // ─── Flight mode ────────────────────────────────────────────────────
+
+  private updateFlightMode(engine: Engine): void {
+    const wp = engine.input.pointers.primary.lastWorldPos;
+    this.player.teleport(
+      wp.x - this.player.width / 2,
+      wp.y - this.player.height,
+    );
+    this.hud.startTimer();
   }
 
   private spawnProjectile(shot: Shot): void {
