@@ -1,4 +1,4 @@
-# Excalibur Platformer
+# Sandwich of Rage
 
 A small single-player 2D platformer built with **Excalibur.js 0.32**, **TypeScript**,
 **Vite** and **pnpm** — same toolchain and folder conventions as

@@ -1,6 +1,6 @@
 # Game Asset Credits
 
-Third-party art and audio used by Excalibur Platformer.
+Third-party art and audio used by Sandwich of Rage.
 
 ## Art
 

@@ -13,7 +13,7 @@ export class Hud {
   private debugVisible = false;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
-  private bestKey = 'excalibur-starter:best';
+  private bestKey = 'sandwich-of-rage:best';
   private bestMs: number | null = null;
   private startedAt: number | null = null;
   private elapsedMs = 0;
@@ -78,7 +78,7 @@ export class Hud {
 
   /** Switch the best-time storage slot (one record per level). */
   useBestTime(levelId: number): void {
-    this.bestKey = `excalibur-starter:best:level-${levelId}`;
+    this.bestKey = `sandwich-of-rage:best:level-${levelId}`;
     this.bestMs = this.readBest();
     this.renderBest();
   }
