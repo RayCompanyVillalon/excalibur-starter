@@ -8,6 +8,20 @@ const CORE_COLS = 3;
 
 const DECOR_ROWS = [3, 4, 5, 6] as const;
 
+/** How the terrain sheet is decorated. Caves use a different subset of rows. */
+export interface TerrainOptions {
+  /** Atlas rows that may hold surface decorations. Empty disables them. */
+  decorationRows?: readonly number[];
+  /** Percent chance (0-100) that a surface cell gets a decoration. */
+  decorationChance?: number;
+}
+
+/** Cave sheets keep their ore/background row opaque, so only rocks decorate. */
+export const CAVE_TERRAIN: TerrainOptions = {
+  decorationRows: [4],
+  decorationChance: 24,
+};
+
 /** Widest texture a chunk may use. Keeps every GPU happy (max size 2048). */
 export const TERRAIN_CHUNK_WIDTH = 2048;
 
@@ -55,13 +69,23 @@ function hash(col: number, row: number): number {
  * Pick an optional decoration tile that grows on top of a grass surface.
  * Rows 3-6 of the atlas are tufts, rocks, plants and grass.
  */
-export function decorationFor(col: number, row: number): AtlasCell | null {
-  const roll = hash(col, row) % 100;
-  if (roll >= 38) {
+export function decorationFor(
+  col: number,
+  row: number,
+  options: TerrainOptions = {},
+): AtlasCell | null {
+  const rows = options.decorationRows ?? DECOR_ROWS;
+  if (rows.length === 0) {
     return null;
   }
 
-  const decorRow = DECOR_ROWS[hash(row, col) % DECOR_ROWS.length] ?? 3;
+  const chance = options.decorationChance ?? 38;
+  const roll = hash(col, row) % 100;
+  if (roll >= chance) {
+    return null;
+  }
+
+  const decorRow = rows[hash(row, col) % rows.length] ?? 3;
   const decorColumn = hash(col + 7, row + 3) % CORE_COLS;
   return { column: decorColumn, row: decorRow };
 }
@@ -77,6 +101,7 @@ export function decorationFor(col: number, row: number): AtlasCell | null {
 export function renderTerrainChunks(
   level: LevelData,
   sheet: ImageSource,
+  options: TerrainOptions = {},
   chunkWidth = TERRAIN_CHUNK_WIDTH,
 ): TerrainChunk[] {
   const chunks: TerrainChunk[] = [];
@@ -93,7 +118,7 @@ export function renderTerrainChunks(
     }
     ctx.imageSmoothingEnabled = false;
 
-    paintTerrain(ctx, level, sheet.image, x, width);
+    paintTerrain(ctx, level, sheet.image, x, width, options);
     chunks.push({ x, canvas });
   }
 
@@ -107,6 +132,7 @@ function paintTerrain(
   image: CanvasImageSource,
   offsetX: number,
   width: number,
+  options: TerrainOptions,
 ): void {
   const cell = level.tile;
   const srcSize = GAME.art.tile;
@@ -141,7 +167,7 @@ function paintTerrain(
       if (!isSolid(level.grid, col, row) || isSolid(level.grid, col, row - 1)) {
         continue;
       }
-      const decor = decorationFor(col, row);
+      const decor = decorationFor(col, row, options);
       if (!decor) {
         continue;
       }

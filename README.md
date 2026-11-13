@@ -228,13 +228,13 @@ FLAC, which Chrome and Firefox decode; Safari may need WAV/OGG conversions.
 
 ## Tests
 
-`pnpm test` runs 88 tests over the engine-free modules:
+`pnpm test` runs 98 tests over the engine-free modules:
 
 - `tests/aabb.test.ts` — overlap edges, containment
 - `tests/kinematic.test.ts` — landing, walls, ceilings, tunnelling, ledges
 - `tests/player.test.ts` — run speed, gravity, jump, jump cut, coyote, buffer, dash
 - `tests/camera.test.ts` — deadzone, clamping, small worlds
-- `tests/level.test.ts` — parsing, spawn/goal, run merging, validation, Levels 2–3
+- `tests/level.test.ts` — parsing, spawn/goal, run merging, validation, Levels 2–4
 - `tests/terrain.test.ts` — autotile neighbour rules, decoration stability
 - `tests/math.test.ts` — clamp, approach, deadzone, ping-pong
 - `tests/time.test.ts` — speedrun clock formatting

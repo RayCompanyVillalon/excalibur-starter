@@ -202,6 +202,99 @@ export function buildLettuceCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A wedge of cave cheese: Level 4's ingredient. */
+export function buildCheeseCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 34;
+  canvas.height = 26;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  // Pickup glow.
+  ctx.fillStyle = 'rgba(255, 210, 80, 0.18)';
+  ctx.beginPath();
+  ctx.ellipse(17, 13, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wedge body: a rounded triangular prism seen from the front.
+  const body = ctx.createLinearGradient(4, 6, 28, 22);
+  body.addColorStop(0, '#ffe07a');
+  body.addColorStop(0.5, '#f5c445');
+  body.addColorStop(1, '#c98a1e');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(4, 20);
+  ctx.lineTo(7, 9);
+  ctx.quadraticCurveTo(17, 4, 28, 8);
+  ctx.lineTo(30, 19);
+  ctx.quadraticCurveTo(17, 23, 4, 20);
+  ctx.closePath();
+  ctx.fill();
+
+  // Pale rind along the bottom edge.
+  ctx.fillStyle = '#f7e6a1';
+  ctx.beginPath();
+  ctx.moveTo(4, 20);
+  ctx.quadraticCurveTo(17, 23, 30, 19);
+  ctx.lineTo(29.5, 21.5);
+  ctx.quadraticCurveTo(17, 25, 4.5, 22.2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Top highlight.
+  ctx.fillStyle = 'rgba(255, 247, 190, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(15, 9.5, 7.5, 2.6, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Air holes.
+  ctx.fillStyle = '#d9a02a';
+  for (const [hx, hy, hr] of [
+    [12, 15, 2.3],
+    [19, 12.5, 1.8],
+    [24, 16.5, 1.5],
+    [9, 11.5, 1.2],
+    [16, 17.5, 1.1],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(120, 78, 12, 0.45)';
+  for (const [hx, hy, hr] of [
+    [12, 15, 1.1],
+    [19, 12.5, 0.9],
+    [24, 16.5, 0.8],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(hx + 0.4, hy + 0.4, hr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Outline for a crisp silhouette in the dark.
+  ctx.strokeStyle = 'rgba(110, 68, 10, 0.55)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(4, 20);
+  ctx.lineTo(7, 9);
+  ctx.quadraticCurveTo(17, 4, 28, 8);
+  ctx.lineTo(30, 19);
+  ctx.quadraticCurveTo(17, 23, 4, 20);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Ground shadow.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(17, 24.5, 11, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  return canvas;
+}
+
 /** Pick the ingredient art for the current level. */
 export function buildIngredientCanvas(ingredient: string): HTMLCanvasElement {
   switch (ingredient.toLowerCase()) {
@@ -209,6 +302,8 @@ export function buildIngredientCanvas(ingredient: string): HTMLCanvasElement {
       return buildTomatoCanvas();
     case 'lettuce':
       return buildLettuceCanvas();
+    case 'cheese':
+      return buildCheeseCanvas();
     default:
       return buildBreadCanvas();
   }

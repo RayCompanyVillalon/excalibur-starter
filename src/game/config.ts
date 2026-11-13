@@ -67,6 +67,13 @@ export const GAME = {
     /** Pause after clearing a level before the next one loads, in ms. */
     advanceDelayMs: 2200,
   },
+  /** Screen-space lamp used by dark cave levels. */
+  darkness: {
+    /** Radius of the bright part of the lamp, in screen pixels. */
+    radius: 350,
+    /** 0 = untouched screen, 1 = fully dark outside the lamp. */
+    darkness: 0.65,
+  },
   collectible: {
     /** How many px above the tile surface to draw the collectible. */
     floatPx: 8,
@@ -92,9 +99,42 @@ export const GAME = {
       width: 16,
       height: 12,
     },
+    spider: {
+      width: 30,
+      height: 22,
+      /** How fast the spider lowers itself from its ceiling anchor, in px/s. */
+      dropSpeed: 95,
+      /** Speed while crawling along the web strand, in px/s. */
+      patrolSpeed: 72,
+      /** Pause at each end of the strand, in ms. */
+      pauseMs: 450,
+      /** Vertical drop from the ceiling anchor to the patrol strand, in tiles. */
+      dropTiles: 4,
+      /** Half the horizontal strand length, in tiles. */
+      strandHalfTiles: 2.5,
+      /** How far above the spider the feet may be to count as a stomp. */
+      stompTolerance: 18,
+      /** Upward speed after stomping a spider, in px/s. */
+      stompBounce: 520,
+      /** How long the flattened sprite lingers before fading out, in ms. */
+      squashMs: 400,
+    },
+    stalactite: {
+      width: 18,
+      height: 26,
+      /** Player must be this close horizontally (px) to trigger a drop. */
+      triggerRangeX: 52,
+      /** Initial downward speed when it detaches, in px/s. */
+      initialSpeed: 60,
+      /** Gravity while falling, in px/s². */
+      gravity: 1900,
+      /** How long the shatter effect lingers, in ms. */
+      shatterMs: 360,
+    },
   },
   colors: {
     background: '#0c1520',
+    caveBackground: '#04060a',
     terrain: '#26384a',
     terrainTop: '#4f7591',
     player: '#f2eee1',

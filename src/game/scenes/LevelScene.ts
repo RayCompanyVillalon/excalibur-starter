@@ -15,18 +15,21 @@ import { GAME } from '../config';
 import { readIntent } from '../input/InputMap';
 import { parseLevel, type LevelData } from '../level/level';
 import { LEVELS, type LevelInfo } from '../level/levels';
-import { renderTerrainChunks } from '../level/terrain';
+import { CAVE_TERRAIN, renderTerrainChunks } from '../level/terrain';
 import { overlaps, type Aabb } from '../physics/aabb';
 import { Player } from '../actors/Player';
 import { Collectible } from '../actors/Collectible';
 import { Spike } from '../actors/Spike';
 import { Mushroom } from '../actors/Mushroom';
+import { Spider, SpiderWeb } from '../actors/Spider';
+import { Stalactite } from '../actors/Stalactite';
 import { LandMine } from '../actors/LandMine';
 import { WormBoss } from '../actors/WormBoss';
 import { MovingPlatform } from '../actors/MovingPlatform';
 import { Saw } from '../actors/Saw';
 import { Cannon, type Shot } from '../actors/Cannon';
 import { Projectile } from '../actors/Projectile';
+import { DarknessPostProcessor } from '../graphics/DarknessPostProcessor';
 import { Hud } from '../ui/hud';
 import { formatTime } from '../ui/time';
 
@@ -104,6 +107,8 @@ export class LevelScene extends Scene {
   private collectible: Collectible | null = null;
   private spikes: Spike[] = [];
   private mushrooms: Mushroom[] = [];
+  private spiders: Spider[] = [];
+  private stalactites: Stalactite[] = [];
   private landMines: LandMine[] = [];
   private wormBoss: WormBoss | null = null;
   private platforms: MovingPlatform[] = [];
@@ -127,8 +132,13 @@ export class LevelScene extends Scene {
   private dashTrail: { actor: Actor; lifeMs: number }[] = [];
   private dashTrailTimer = 0;
   private parryRings: { actor: Actor; lifeMs: number }[] = [];
+  private darkness: DarknessPostProcessor | null = null;
 
-  override onInitialize(): void {
+  override onInitialize(engine: Engine): void {
+    // One screen-space lamp for the whole run; dark levels switch it on.
+    this.darkness = new DarknessPostProcessor();
+    engine.graphicsContext.addPostProcessor(this.darkness);
+
     // Browsers only allow audio after a gesture, so resume the AudioContext and
     // start the loop on the first key press or click. Keep listening until the
     // context actually unlocks, then detach.
@@ -158,6 +168,8 @@ export class LevelScene extends Scene {
     this.clearParryRings();
     this.spikes = [];
     this.mushrooms = [];
+    this.spiders = [];
+    this.stalactites = [];
     this.landMines = [];
     this.platforms = [];
     this.saws = [];
@@ -183,14 +195,25 @@ export class LevelScene extends Scene {
     this.levelIndex = index;
     this.level = parseLevel(info.map);
 
-    this.backgroundColor = Color.fromHex(GAME.colors.background);
+    const cave = info.tileset === 'underworld';
+    this.backgroundColor = Color.fromHex(
+      cave ? GAME.colors.caveBackground : GAME.colors.background,
+    );
+    if (this.darkness) {
+      this.darkness.enabled = Boolean(info.dark);
+    }
 
     this.buildTerrain();
     this.buildClouds();
     this.buildGoal();
     this.buildSpikes();
     this.buildCollectible();
-    this.buildMushrooms();
+    if (info.enemies === 'spider') {
+      this.buildSpiders();
+    } else {
+      this.buildMushrooms();
+    }
+    this.buildStalactites();
     this.buildLandMines();
     this.buildWormBoss();
     this.buildPlatforms();
@@ -335,6 +358,8 @@ export class LevelScene extends Scene {
     if (this.checkSawContact()) return;
     if (this.checkProjectileContact()) return;
     if (this.checkEnemyContact(prevFeet, fallSpeed)) return;
+    if (this.checkSpiderContact(prevFeet, fallSpeed)) return;
+    if (this.checkStalactiteContact()) return;
     if (this.checkLandMineContact()) return;
     if (this.checkWormContact()) return;
 
@@ -354,7 +379,7 @@ export class LevelScene extends Scene {
     }
   }
 
-  override onPostUpdate(_engine: Engine, elapsed: number): void {
+  override onPostUpdate(engine: Engine, elapsed: number): void {
     this.updateParryRings(elapsed);
 
     if (this.player.parryInvulnerable) {
@@ -386,6 +411,18 @@ export class LevelScene extends Scene {
     );
     this.camera.pos.setTo(focus.x, focus.y);
 
+    // Feed the lamp shader the player's screen-space centre. The screen texture
+    // is in logical resolution units, which is what worldToScreen returns.
+    if (this.darkness?.enabled) {
+      const center = this.playerCenter();
+      const screen = engine.worldToScreenCoordinates(new Vector(center.x, center.y));
+      this.darkness.light.setTo(screen.x, screen.y);
+      this.darkness.view.setTo(
+        engine.screen.resolution.width,
+        engine.screen.resolution.height,
+      );
+    }
+
     if (this.hud.debugOn) {
       const { x, y } = this.player.pos;
       const { vx, vy } = this.player.kinematics;
@@ -400,6 +437,8 @@ export class LevelScene extends Scene {
           `item  ${this.ingredientCollected ? '✓' : '✗'} ${this.levelInfo.ingredient}`,
           `time  ${formatTime(this.hud.timeMs)}`,
           `shots ${this.projectiles.length}`,
+          `spiders ${this.spiders.filter((spider) => spider.isAlive).length}/${this.spiders.length}`,
+          `spikes ${this.stalactites.filter((stalactite) => stalactite.isDangerous).length}/${this.stalactites.length}`,
           `parry ${this.player.parrying ? 'active' : this.player.parryInvulnerable ? 'grace' : '—'}`,
           `boss  ${this.wormBoss ? (this.wormBoss.isDangerous ? 'surface!' : 'burrowed') : '—'}`,
           `flight ${this.flightMode ? 'ON' : 'off'}`,
@@ -428,6 +467,8 @@ export class LevelScene extends Scene {
 
     this.solids = [...this.level.solids, ...this.platforms.map((platform) => platform.bounds())];
 
+    this.updateStalactites(elapsed, this.playerCenter());
+
     for (const saw of this.saws) {
       saw.advance(elapsed);
     }
@@ -442,6 +483,23 @@ export class LevelScene extends Scene {
     }
 
     this.updateProjectiles(elapsed);
+  }
+
+  /**
+   * Drop a stalactite once the player walks under it, then let it fall until
+   * it hits the terrain. `solids` already includes the moving platforms.
+   */
+  private updateStalactites(elapsed: number, center: { x: number; y: number }): void {
+    const floorY = this.level.heightPx + 64;
+    for (const stalactite of this.stalactites) {
+      if (stalactite.isDangerous && !stalactite.isFalling) {
+        const dx = Math.abs(center.x - stalactite.pos.x);
+        if (dx <= GAME.enemies.stalactite.triggerRangeX && center.y > stalactite.pos.y + 4) {
+          stalactite.trigger();
+        }
+      }
+      stalactite.advance(elapsed, this.solids, floorY);
+    }
   }
 
   private isRiding(platform: MovingPlatform): boolean {
@@ -639,7 +697,9 @@ export class LevelScene extends Scene {
     }
 
     if (!this.terrainTextures) {
-      const chunks = renderTerrainChunks(this.level, Images.terrain);
+      const cave = this.levelInfo.tileset === 'underworld';
+      const sheet = cave ? Images.caveTerrain : Images.terrain;
+      const chunks = renderTerrainChunks(this.level, sheet, cave ? CAVE_TERRAIN : {});
       this.terrainTextures = {
         bounds: chunks.map((chunk) => ({
           x: chunk.x,
@@ -669,6 +729,10 @@ export class LevelScene extends Scene {
   }
 
   private buildClouds(): void {
+    // Caves are enclosed; a drifting cloud would break the illusion.
+    if (this.levelInfo.tileset === 'underworld') {
+      return;
+    }
     const sprite = Images.cloud.toSprite({
       scale: new Vector(GAME.art.scale, GAME.art.scale),
       opacity: 0.45,
@@ -740,8 +804,9 @@ export class LevelScene extends Scene {
   }
 
   private buildPlatforms(): void {
+    const sheet = this.levelInfo.tileset === 'underworld' ? Images.caveTerrain : Images.terrain;
     for (const spec of this.levelInfo.platforms ?? []) {
-      const platform = new MovingPlatform(spec, Images.terrain);
+      const platform = new MovingPlatform(spec, sheet);
       this.platforms.push(platform);
       this.add(platform);
     }
@@ -779,6 +844,47 @@ export class LevelScene extends Scene {
         mushroom.setSolids(this.level.solids);
         this.mushrooms.push(mushroom);
         this.add(mushroom);
+      }
+    }
+  }
+
+  /**
+   * Cave spiders hang from the solid tile above each `M` marker. The marker
+   * sits in the air cell directly under the ceiling.
+   */
+  private buildSpiders(): void {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'M') {
+          continue;
+        }
+        const anchorX = (col + 0.5) * tile;
+        const anchorY = row * tile;
+        const web = new SpiderWeb(anchorX, anchorY);
+        const spider = new Spider(anchorX, anchorY);
+        this.spiders.push(spider);
+        this.add(web);
+        this.add(spider);
+      }
+    }
+  }
+
+  /** Stalactites hang from the solid tile above each `T` marker. */
+  private buildStalactites(): void {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'T') {
+          continue;
+        }
+        const stalactite = new Stalactite((col + 0.5) * tile, row * tile);
+        this.stalactites.push(stalactite);
+        this.add(stalactite);
       }
     }
   }
@@ -898,6 +1004,34 @@ export class LevelScene extends Scene {
       };
       if (overlaps(box, mbox)) {
         mushroom.fling(this.player.facing);
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        return;
+      }
+    }
+
+    // Cave spiders: cut them loose from the web.
+    for (const spider of this.spiders) {
+      if (!spider.isAlive) {
+        continue;
+      }
+      if (overlaps(box, spider.bounds())) {
+        spider.fling(this.player.facing);
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        return;
+      }
+    }
+
+    // Falling stalactites: shatter the first one within reach.
+    for (const stalactite of this.stalactites) {
+      if (!stalactite.isDangerous) {
+        continue;
+      }
+      if (overlaps(box, stalactite.bounds())) {
+        stalactite.shatter();
         this.player.resolveParry();
         audio.parry();
         this.spawnParryRing();
@@ -1077,6 +1211,50 @@ export class LevelScene extends Scene {
     return false;
   }
 
+  /** Spiders behave like mushrooms: stomp them or die on contact. */
+  private checkSpiderContact(prevFeet: number, fallSpeed: number): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
+    const body = this.player.bounds();
+    const cfg = GAME.enemies.spider;
+    for (const spider of this.spiders) {
+      if (!spider.isAlive) {
+        continue;
+      }
+      const box = spider.bounds();
+      if (!overlaps(body, box)) {
+        continue;
+      }
+
+      const comingDown = fallSpeed > 0 && prevFeet <= box.y + cfg.stompTolerance;
+      if (comingDown) {
+        spider.squash();
+        this.player.bounce(cfg.stompBounce);
+        audio.land(360);
+        continue;
+      }
+
+      this.killPlayer();
+      return true;
+    }
+    return false;
+  }
+
+  private checkStalactiteContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
+    const body = this.player.bounds();
+    for (const stalactite of this.stalactites) {
+      if (stalactite.isDangerous && overlaps(body, stalactite.bounds())) {
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
   private checkLandMineContact(): boolean {
     if (this.player.parryInvulnerable) {
       return false;
@@ -1174,6 +1352,12 @@ export class LevelScene extends Scene {
     }
     for (const mushroom of this.mushrooms) {
       mushroom.reset();
+    }
+    for (const spider of this.spiders) {
+      spider.reset();
+    }
+    for (const stalactite of this.stalactites) {
+      stalactite.reset();
     }
     this.wormBoss?.reset();
     this.clearProjectiles();

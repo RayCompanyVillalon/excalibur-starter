@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autotile, decorationFor, isSolid } from '../src/game/level/terrain';
+import { autotile, CAVE_TERRAIN, decorationFor, isSolid } from '../src/game/level/terrain';
 
 function gridFrom(rows: readonly string[]): boolean[][] {
   return rows.map((row) => [...row].map((cell) => cell === '#'));
@@ -72,5 +72,18 @@ describe('decorationFor', () => {
     const values = Array.from({ length: 200 }, (_, i) => decorationFor(i, 9));
     expect(values.some((value) => value === null)).toBe(true);
     expect(values.some((value) => value !== null)).toBe(true);
+  });
+
+  it('keeps cave decorations on the sparse rock row', () => {
+    for (let col = 0; col < 80; col += 1) {
+      for (let row = 0; row < 24; row += 1) {
+        const decor = decorationFor(col, row, CAVE_TERRAIN);
+        if (decor) {
+          // Row 3 of the underworld sheet is an opaque fill tile; only row 4
+          // (loose rocks) is safe to stamp above a cave surface.
+          expect(decor.row).toBe(4);
+        }
+      }
+    }
   });
 });

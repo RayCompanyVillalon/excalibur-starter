@@ -14,6 +14,7 @@ import fallUrl from '../assets/player/fall.png';
 import jumpUrl from '../assets/player/jump.png';
 import walkUrl from '../assets/player/walk.png';
 import overworldUrl from '../assets/tiles/overworld.png';
+import underworldUrl from '../assets/tiles/underworld.png';
 
 /**
  * C32 Platformer Tiles, 16x16 pixel art.
@@ -25,6 +26,7 @@ export const Images = {
   playerFall: new ImageSource(fallUrl),
   playerDie: new ImageSource(dieUrl),
   terrain: new ImageSource(overworldUrl),
+  caveTerrain: new ImageSource(underworldUrl),
   door: new ImageSource(doorUrl),
   cloud: new ImageSource(cloudUrl),
 };

@@ -3,7 +3,8 @@ import { aabb, type Aabb } from '../physics/aabb';
 
 /**
  * Tile legend: `#` solid, `.` air, `P` spawn, `G` goal, `S` spikes,
- * `C` collectible ingredient, `M` mushroom spawn, `L` land mine.
+ * `C` collectible ingredient, `M` enemy spawn, `L` land mine,
+ * `T` stalactite hanging from the solid tile above.
  * Rows may be shorter than the widest row; they are padded with air.
  */
 export interface LevelData {
@@ -31,6 +32,7 @@ const SPIKE = 'S';
 const COLLECTIBLE = 'C';
 const MUSHROOM = 'M';
 const LAND_MINE = 'L';
+const STALACTITE = 'T';
 const AIR = '.';
 
 export function parseLevel(rows: readonly string[], tile = GAME.world.tile): LevelData {
@@ -96,6 +98,7 @@ export function parseLevel(rows: readonly string[], tile = GAME.world.tile): Lev
         // from the raw map, so the tile itself is plain air.
         case MUSHROOM:
         case LAND_MINE:
+        case STALACTITE:
           break;
         default:
           throw new Error(`Unknown level tile "${cell}" at ${col},${row}`);

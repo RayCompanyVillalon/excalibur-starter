@@ -175,6 +175,78 @@ describe('Level 3', () => {
   });
 });
 
+describe('Level 4', () => {
+  const info = LEVELS[3]!;
+  const level = parseLevel(info.map);
+
+  it('opens the Caves section with the cheese', () => {
+    expect(level.width).toBe(56);
+    expect(level.height).toBe(56);
+    expect(info.section).toBe('Caves');
+    expect(info.ingredient).toBe('Cheese');
+    expect(info.tileset).toBe('underworld');
+    expect(info.dark).toBe(true);
+    expect(info.enemies).toBe('spider');
+  });
+
+  it('is tighter and more vertical than Level 3', () => {
+    const previous = parseLevel(LEVELS[2]!.map);
+    expect(level.width).toBeLessThan(previous.width);
+    expect(level.height).toBeGreaterThan(previous.height);
+    expect(new Set(info.map.map((row) => row.length)).size).toBe(1);
+  });
+
+  it('hides the cheese in the lower-left chamber and puts the door opposite', () => {
+    expect(level.collectibles).toHaveLength(1);
+    expect(level.collectibles[0]).toEqual({
+      x: 10.5 * GAME.world.tile,
+      y: 47.5 * GAME.world.tile,
+    });
+    expect(level.goal.x).toBe(40 * GAME.world.tile);
+    expect(level.goal.y).toBe(47 * GAME.world.tile);
+  });
+
+  it('ships spiders, stalactites and spikes but no grassland hazards', () => {
+    const count = (marker: string): number =>
+      info.map.reduce(
+        (total, row) => total + [...row].filter((cell) => cell === marker).length,
+        0,
+      );
+
+    expect(count('M')).toBe(6);
+    expect(count('T')).toBe(7);
+    expect(count('S')).toBe(10);
+    expect(info.platforms ?? []).toHaveLength(0);
+    expect(info.saws ?? []).toHaveLength(0);
+    expect(info.cannons ?? []).toHaveLength(0);
+    expect(info.boss).toBeUndefined();
+  });
+
+  it('anchors every spider and stalactite to a solid ceiling', () => {
+    for (let row = 0; row < info.map.length; row += 1) {
+      const line = info.map[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'M' && line[col] !== 'T') {
+          continue;
+        }
+        expect((info.map[row - 1] ?? '')[col]).toBe('#');
+      }
+    }
+  });
+
+  it('keeps every spike sitting on solid ground', () => {
+    for (let row = 0; row < info.map.length; row += 1) {
+      const line = info.map[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'S') {
+          continue;
+        }
+        expect((info.map[row + 1] ?? '')[col]).toBe('#');
+      }
+    }
+  });
+});
+
 describe('parseLevel validation', () => {
   it('pads short rows with air', () => {
     const level = parseLevel(['P.G']);
@@ -183,8 +255,8 @@ describe('parseLevel validation', () => {
     expect(level.goal.x).toBe(2 * GAME.world.tile);
   });
 
-  it('accepts enemy and land-mine markers as air', () => {
-    const level = parseLevel(['P.MG', 'L...']);
+  it('accepts enemy, land-mine and stalactite markers as air', () => {
+    const level = parseLevel(['P.MG', 'L.T.']);
     expect(level.solids).toHaveLength(0);
     expect(level.spawn.x).toBe(0.5 * GAME.world.tile);
   });
