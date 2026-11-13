@@ -4,6 +4,7 @@ import { formatTime } from './time';
 export class Hud {
   private readonly debugPanel = document.getElementById('debug');
   private readonly debugBody = document.getElementById('debug-body');
+  private readonly debugLevelsEl = document.getElementById('debug-levels');
   private readonly toastEl = document.getElementById('toast');
   private readonly ingredientEl = document.getElementById('ingredient');
   private readonly levelEl = document.getElementById('level-label');
@@ -12,8 +13,9 @@ export class Hud {
 
   private debugVisible = false;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
+  private levelButtons: HTMLButtonElement[] = [];
 
-  private bestKey = 'excalibur-starter:best';
+  private bestKey = 'sandwich-of-rage:best';
   private bestMs: number | null = null;
   private startedAt: number | null = null;
   private elapsedMs = 0;
@@ -42,6 +44,50 @@ export class Hud {
     if (this.debugBody && this.debugVisible) {
       this.debugBody.textContent = text;
     }
+  }
+
+  /**
+   * Build the debug-only level picker. Each entry becomes a button that jumps
+   * straight to that level; `markActiveLevel` highlights the current one.
+   */
+  setLevelSelector(
+    levels: ReadonlyArray<{ name: string; ingredient: string }>,
+    onSelect: (index: number) => void,
+  ): void {
+    if (!this.debugLevelsEl) {
+      return;
+    }
+
+    this.debugLevelsEl.replaceChildren();
+    this.levelButtons = levels.map((level, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'debug-level';
+      button.title = `Jump to ${level.name} (${level.ingredient})`;
+
+      const label = document.createElement('span');
+      label.textContent = level.name;
+
+      const key = document.createElement('span');
+      key.className = 'level-key';
+      key.textContent = `[${index + 1}]`;
+
+      button.append(label, key);
+      button.addEventListener('click', () => {
+        // Drop focus so a later Space press is a jump, not a button click.
+        button.blur();
+        onSelect(index);
+      });
+      this.debugLevelsEl?.append(button);
+      return button;
+    });
+  }
+
+  /** Highlight the level that is currently loaded. */
+  markActiveLevel(index: number): void {
+    this.levelButtons.forEach((button, i) => {
+      button.classList.toggle('active', i === index);
+    });
   }
 
   toast(message: string, durationMs = 2200): void {
@@ -78,7 +124,7 @@ export class Hud {
 
   /** Switch the best-time storage slot (one record per level). */
   useBestTime(levelId: number): void {
-    this.bestKey = `excalibur-starter:best:level-${levelId}`;
+    this.bestKey = `sandwich-of-rage:best:level-${levelId}`;
     this.bestMs = this.readBest();
     this.renderBest();
   }

@@ -38,7 +38,7 @@ async function boot(): Promise<void> {
 }
 
 void boot().catch((error: unknown) => {
-  console.error('Failed to start Excalibur Platformer', error);
+  console.error('Failed to start Sandwich of Rage', error);
 });
 
 // Keep the page from scrolling or opening browser help while playing.

@@ -37,6 +37,19 @@ import { formatTime } from '../ui/time';
 
 const CLOUD_SPACING = 250;
 
+/** Digit hotkeys used by the debug level picker, in level order. */
+const LEVEL_KEYS = [
+  Keys.Digit1,
+  Keys.Digit2,
+  Keys.Digit3,
+  Keys.Digit4,
+  Keys.Digit5,
+  Keys.Digit6,
+  Keys.Digit7,
+  Keys.Digit8,
+  Keys.Digit9,
+];
+
 /** A tapered cyan streak used for dash afterimages. */
 let dashStreakSource: ImageSource | null = null;
 function dashStreak(): ImageSource {
@@ -164,6 +177,7 @@ export class LevelScene extends Scene {
       Number.isInteger(requested) && requested >= 1 && requested <= LEVELS.length
         ? requested - 1
         : 0;
+    this.hud.setLevelSelector(LEVELS, (index) => this.loadLevel(index));
     this.loadLevel(startIndex);
   }
 
@@ -242,6 +256,7 @@ export class LevelScene extends Scene {
     this.resetCamera();
 
     const label = `${info.section} — ${info.name}`;
+    this.hud.markActiveLevel(index);
     this.hud.toast(`${label} · reach the exit with the ${info.ingredient}`, 3200);
     this.hud.setLevelLabel(label);
   }
@@ -257,6 +272,15 @@ export class LevelScene extends Scene {
 
     if (keyboard.wasPressed(Keys.F1)) {
       this.hud.toggleDebug();
+    }
+    if (this.hud.debugOn) {
+      const pick = LEVEL_KEYS.findIndex((key) => keyboard.wasPressed(key));
+      if (pick !== -1 && pick < LEVELS.length) {
+        if (pick !== this.levelIndex) {
+          this.loadLevel(pick);
+        }
+        return;
+      }
     }
     if (keyboard.wasPressed(Keys.M)) {
       const muted = audio.toggleMute();
@@ -487,6 +511,7 @@ export class LevelScene extends Scene {
           `parry ${this.player.parrying ? 'active' : this.player.parryInvulnerable ? 'grace' : '—'}`,
           `boss  ${this.wormBoss ? (this.wormBoss.isDangerous ? 'surface!' : 'burrowed') : '—'}`,
           `flight ${this.flightMode ? 'ON' : 'off'}`,
+          `pick   1-${LEVELS.length} or click a level`,
           `K     next level`,
         ].join('\n'),
       );

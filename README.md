@@ -1,4 +1,4 @@
-# Excalibur Platformer
+# Sandwich of Rage
 
 A small single-player 2D platformer built with **Excalibur.js 0.32**, **TypeScript**,
 **Vite** and **pnpm** — same toolchain and folder conventions as
@@ -27,7 +27,7 @@ run.
 | Next level | Loads automatically after a clear (or `N` to skip the wait) |
 | Respawn / restart run | `R` |
 | Mute / unmute | `M` |
-| Debug readout | `F1` |
+| Debug overlay / level select | `F1` (then a level number or click a level) |
 
 The clock starts on your first movement, jump or dash input. Dying or pressing `R`
 resets the run, and your best time for the level is stored in `localStorage`.

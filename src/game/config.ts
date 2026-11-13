@@ -1,5 +1,5 @@
 export const GAME = {
-  title: 'Excalibur Platformer',
+  title: 'Sandwich of Rage',
   viewport: {
     width: 960,
     height: 540,
