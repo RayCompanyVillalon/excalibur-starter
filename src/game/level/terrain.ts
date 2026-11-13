@@ -8,9 +8,18 @@ const CORE_COLS = 3;
 
 const DECOR_ROWS = [3, 4, 5, 6] as const;
 
+/** Widest texture a chunk may use. Keeps every GPU happy (max size 2048). */
+export const TERRAIN_CHUNK_WIDTH = 2048;
+
 export interface AtlasCell {
   column: number;
   row: number;
+}
+
+export interface TerrainChunk {
+  /** World-space x of this chunk's left edge. */
+  x: number;
+  canvas: HTMLCanvasElement;
 }
 
 /** True when a map cell is solid; out-of-bounds is treated as air. */
@@ -58,28 +67,56 @@ export function decorationFor(col: number, row: number): AtlasCell | null {
 }
 
 /**
- * Composite the whole level into one canvas: terrain with autotiled edges,
- * plus deterministic surface decorations. Returns the canvas so the scene can
- * wrap it in an Excalibur sprite.
+ * Composite the level into horizontal chunks: terrain with autotiled edges,
+ * plus deterministic surface decorations.
+ *
+ * Painting straight into the chunks (instead of one level-sized canvas and
+ * then copying) keeps peak memory low: Level 3 is 6400×1280 px, which is 32 MB
+ * of RGBA for the full canvas alone.
  */
-export function renderTerrain(level: LevelData, sheet: ImageSource): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = level.widthPx;
-  canvas.height = level.heightPx;
+export function renderTerrainChunks(
+  level: LevelData,
+  sheet: ImageSource,
+  chunkWidth = TERRAIN_CHUNK_WIDTH,
+): TerrainChunk[] {
+  const chunks: TerrainChunk[] = [];
 
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('2D canvas context unavailable');
+  for (let x = 0; x < level.widthPx; x += chunkWidth) {
+    const width = Math.min(chunkWidth, level.widthPx - x);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = level.heightPx;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('2D canvas context unavailable');
+    }
+    ctx.imageSmoothingEnabled = false;
+
+    paintTerrain(ctx, level, sheet.image, x, width);
+    chunks.push({ x, canvas });
   }
-  ctx.imageSmoothingEnabled = false;
 
-  const image = sheet.image;
+  return chunks;
+}
+
+/** Draw the terrain and decorations that fall inside `[offsetX, offsetX+width)`. */
+function paintTerrain(
+  ctx: CanvasRenderingContext2D,
+  level: LevelData,
+  image: CanvasImageSource,
+  offsetX: number,
+  width: number,
+): void {
   const cell = level.tile;
   const srcSize = GAME.art.tile;
   const dstSize = srcSize * GAME.art.scale;
+  const firstCol = Math.max(0, Math.floor(offsetX / cell));
+  const lastCol = Math.min(level.width - 1, Math.ceil((offsetX + width) / cell) - 1);
+  const drawX = (col: number): number => col * cell - offsetX;
 
   for (let row = 0; row < level.height; row += 1) {
-    for (let col = 0; col < level.width; col += 1) {
+    for (let col = firstCol; col <= lastCol; col += 1) {
       if (!isSolid(level.grid, col, row)) {
         continue;
       }
@@ -90,7 +127,7 @@ export function renderTerrain(level: LevelData, sheet: ImageSource): HTMLCanvasE
         atlas.row * srcSize,
         srcSize,
         srcSize,
-        col * cell,
+        drawX(col),
         row * cell,
         dstSize,
         dstSize,
@@ -100,7 +137,7 @@ export function renderTerrain(level: LevelData, sheet: ImageSource): HTMLCanvasE
 
   // Decorations sit in the air cell directly above a grass surface.
   for (let row = 1; row < level.height; row += 1) {
-    for (let col = 0; col < level.width; col += 1) {
+    for (let col = firstCol; col <= lastCol; col += 1) {
       if (!isSolid(level.grid, col, row) || isSolid(level.grid, col, row - 1)) {
         continue;
       }
@@ -114,13 +151,11 @@ export function renderTerrain(level: LevelData, sheet: ImageSource): HTMLCanvasE
         decor.row * srcSize,
         srcSize,
         srcSize,
-        col * cell,
+        drawX(col),
         (row - 1) * cell,
         dstSize,
         dstSize,
       );
     }
   }
-
-  return canvas;
 }

@@ -35,6 +35,23 @@ export function buildPlatformCanvas(widthTiles: number, sheet: ImageSource): HTM
   return canvas;
 }
 
+/** Shared platform textures, keyed by atlas sheet and width in tiles. */
+const platformSources = new WeakMap<ImageSource, Map<number, ImageSource>>();
+
+function platformImage(widthTiles: number, sheet: ImageSource): ImageSource {
+  let byWidth = platformSources.get(sheet);
+  if (!byWidth) {
+    byWidth = new Map();
+    platformSources.set(sheet, byWidth);
+  }
+  let image = byWidth.get(widthTiles);
+  if (!image) {
+    image = ImageSource.fromHtmlCanvasElement(buildPlatformCanvas(widthTiles, sheet));
+    byWidth.set(widthTiles, image);
+  }
+  return image;
+}
+
 /**
  * A floating island that slides along a fixed path. The scene advances it
  * explicitly so the player can be carried before the physics step runs.
@@ -66,10 +83,7 @@ export class MovingPlatform extends Actor {
     this.phaseMs = (spec.phase ?? 0) * spec.periodMs;
     this.timeMs = 0;
 
-    const image = ImageSource.fromHtmlCanvasElement(
-      buildPlatformCanvas(spec.width, sheet),
-    );
-    this.graphics.use(new Sprite({ image }));
+    this.graphics.use(new Sprite({ image: platformImage(spec.width, sheet) }));
   }
 
   /** Advance the platform and return how far it moved this frame. */

@@ -33,6 +33,15 @@ function buildOrbCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** One shared orb texture for every cannon shot. */
+let orbSource: ImageSource | null = null;
+function orbImage(): ImageSource {
+  if (!orbSource) {
+    orbSource = ImageSource.fromHtmlCanvasElement(buildOrbCanvas());
+  }
+  return orbSource;
+}
+
 /** A straight-flying cannon shot. Contact kills the player. */
 export class Projectile extends Actor {
   private vx: number;
@@ -50,7 +59,7 @@ export class Projectile extends Actor {
     });
     this.vx = shot.vx;
     this.vy = shot.vy;
-    this.graphics.use(new Sprite({ image: ImageSource.fromHtmlCanvasElement(buildOrbCanvas()) }));
+    this.graphics.use(new Sprite({ image: orbImage() }));
   }
 
   /** Turn the shot back the way it came and make it dangerous to the enemy. */

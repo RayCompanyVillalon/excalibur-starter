@@ -90,6 +90,32 @@ export function buildSpikeCanvas(toothCount = 2): HTMLCanvasElement {
   return canvas;
 }
 
+/** Shared spike textures: one unit tile plus a tiled run per width/height. */
+let spikeUnitCanvas: HTMLCanvasElement | null = null;
+const spikeRunSources = new Map<string, ImageSource>();
+
+function spikeRunImage(width: number, height: number): ImageSource {
+  const key = `${width}x${height}`;
+  let image = spikeRunSources.get(key);
+  if (!image) {
+    const unit = (spikeUnitCanvas ??= buildSpikeCanvas());
+    const tiled = document.createElement('canvas');
+    tiled.width = width;
+    tiled.height = height;
+    const ctx = tiled.getContext('2d');
+    if (!ctx) {
+      throw new Error('2D canvas context unavailable');
+    }
+    ctx.imageSmoothingEnabled = false;
+    for (let offset = 0; offset < width; offset += unit.width) {
+      ctx.drawImage(unit, offset, 0);
+    }
+    image = ImageSource.fromHtmlCanvasElement(tiled);
+    spikeRunSources.set(key, image);
+  }
+  return image;
+}
+
 /**
  * Static spike hazard — touching it kills the player.
  */
@@ -103,20 +129,6 @@ export class Spike extends Actor {
       z: 3,
     });
 
-    const tiled = document.createElement('canvas');
-    tiled.width = width;
-    tiled.height = height;
-    const ctx = tiled.getContext('2d');
-    if (!ctx) {
-      throw new Error('2D canvas context unavailable');
-    }
-    ctx.imageSmoothingEnabled = false;
-    const unit = buildSpikeCanvas();
-    for (let offset = 0; offset < width; offset += unit.width) {
-      ctx.drawImage(unit, offset, 0);
-    }
-
-    const image = ImageSource.fromHtmlCanvasElement(tiled);
-    this.graphics.use(new Sprite({ image }));
+    this.graphics.use(new Sprite({ image: spikeRunImage(width, height) }));
   }
 }

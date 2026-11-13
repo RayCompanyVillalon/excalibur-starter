@@ -15,7 +15,7 @@ import { GAME } from '../config';
 import { readIntent } from '../input/InputMap';
 import { parseLevel, type LevelData } from '../level/level';
 import { LEVELS, type LevelInfo } from '../level/levels';
-import { renderTerrain } from '../level/terrain';
+import { renderTerrainChunks } from '../level/terrain';
 import { overlaps, type Aabb } from '../physics/aabb';
 import { Player } from '../actors/Player';
 import { Collectible } from '../actors/Collectible';
@@ -83,10 +83,23 @@ function parryRing(): ImageSource {
   return parryRingSource;
 }
 
+/** Terrain chunk geometry and their GPU-backed images. */
+interface TerrainTextures {
+  bounds: Array<{ x: number; width: number; height: number }>;
+  images: ImageSource[];
+}
+
 export class LevelScene extends Scene {
   private level!: LevelData;
   private levelInfo!: LevelInfo;
   private levelIndex = 0;
+  /**
+   * Terrain textures are rebuilt only when the level actually changes. Keeping
+   * one level's chunks (instead of one set per visited level) bounds memory
+   * while still making repeated reloads of the same level allocation-free.
+   */
+  private terrainInfo: LevelInfo | null = null;
+  private terrainTextures: TerrainTextures | null = null;
   private player!: Player;
   private collectible: Collectible | null = null;
   private spikes: Spike[] = [];
@@ -116,12 +129,16 @@ export class LevelScene extends Scene {
   private parryRings: { actor: Actor; lifeMs: number }[] = [];
 
   override onInitialize(): void {
-    // Browsers only allow audio after a gesture, so start the loop on the
-    // first key press or click. Registered once for the whole session.
+    // Browsers only allow audio after a gesture, so resume the AudioContext and
+    // start the loop on the first key press or click. Keep listening until the
+    // context actually unlocks, then detach.
     const unlock = (): void => {
-      audio.startMusic();
-      window.removeEventListener('keydown', unlock);
-      window.removeEventListener('pointerdown', unlock);
+      void audio.unlock().then((ok) => {
+        if (ok) {
+          window.removeEventListener('keydown', unlock);
+          window.removeEventListener('pointerdown', unlock);
+        }
+      });
     };
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
@@ -612,34 +629,43 @@ export class LevelScene extends Scene {
   // ─── Level building ─────────────────────────────────────────────────
 
   private buildTerrain(): void {
-    const canvas = renderTerrain(this.level, Images.terrain);
-
     // A 4480px-wide texture exceeds the 4096px limit some GPUs advertise, so
-    // split the composited level into horizontal chunks.
-    const MAX_CHUNK = 2048;
-    for (let x = 0; x < canvas.width; x += MAX_CHUNK) {
-      const width = Math.min(MAX_CHUNK, canvas.width - x);
-      const chunk = document.createElement('canvas');
-      chunk.width = width;
-      chunk.height = canvas.height;
-      const ctx = chunk.getContext('2d');
-      if (!ctx) {
-        throw new Error('2D canvas context unavailable');
-      }
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(canvas, x, 0, width, canvas.height, 0, 0, width, canvas.height);
+    // the level is composited directly into horizontal chunks. Chunk textures
+    // are reused while the same level stays loaded: reloading a level must not
+    // upload a fresh ~30 MB of terrain every time.
+    if (this.terrainInfo !== this.levelInfo) {
+      this.terrainInfo = this.levelInfo;
+      this.terrainTextures = null;
+    }
 
-      const image = ImageSource.fromHtmlCanvasElement(chunk);
-      const terrain = new Actor({
-        pos: new Vector(x, 0),
+    if (!this.terrainTextures) {
+      const chunks = renderTerrainChunks(this.level, Images.terrain);
+      this.terrainTextures = {
+        bounds: chunks.map((chunk) => ({
+          x: chunk.x,
+          width: chunk.canvas.width,
+          height: chunk.canvas.height,
+        })),
+        images: chunks.map((chunk) => ImageSource.fromHtmlCanvasElement(chunk.canvas)),
+      };
+    }
+
+    const terrain = this.terrainTextures;
+    terrain.bounds.forEach((bounds, index) => {
+      const image = terrain.images[index];
+      if (!image) {
+        return;
+      }
+      const terrainActor = new Actor({
+        pos: new Vector(bounds.x, 0),
         anchor: new Vector(0, 0),
-        width,
-        height: canvas.height,
+        width: bounds.width,
+        height: bounds.height,
         z: -10,
       });
-      terrain.graphics.use(new Sprite({ image }));
-      this.add(terrain);
-    }
+      terrainActor.graphics.use(new Sprite({ image }));
+      this.add(terrainActor);
+    });
   }
 
   private buildClouds(): void {

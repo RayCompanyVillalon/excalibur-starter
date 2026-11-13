@@ -133,6 +133,18 @@ export function buildSquashedMushroomCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** Shared mushroom textures so reloading a level does not churn the GPU. */
+let normalSource: ImageSource | null = null;
+let squashedSource: ImageSource | null = null;
+function mushroomImage(squashed: boolean): ImageSource {
+  if (squashed) {
+    squashedSource ??= ImageSource.fromHtmlCanvasElement(buildSquashedMushroomCanvas());
+    return squashedSource;
+  }
+  normalSource ??= ImageSource.fromHtmlCanvasElement(buildMushroomCanvas());
+  return normalSource;
+}
+
 /**
  * An evil mushroom person that patrols left and right on its platform.
  * Touching it kills the player, but landing on its cap squashes it.
@@ -170,12 +182,8 @@ export class Mushroom extends Actor {
     this.patrolLeft = platformLeft + width / 2;
     this.patrolRight = platformRight - width / 2;
 
-    this.normalSprite = new Sprite({
-      image: ImageSource.fromHtmlCanvasElement(buildMushroomCanvas()),
-    });
-    this.squashedSprite = new Sprite({
-      image: ImageSource.fromHtmlCanvasElement(buildSquashedMushroomCanvas()),
-    });
+    this.normalSprite = new Sprite({ image: mushroomImage(false) });
+    this.squashedSprite = new Sprite({ image: mushroomImage(true) });
     this.graphics.use(this.normalSprite);
     this.graphics.offset = new Vector(-8, -8);
   }

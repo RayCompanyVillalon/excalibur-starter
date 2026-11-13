@@ -13,7 +13,7 @@ for the lettuce, survives the saw descent, crosses the worm's arena, and escapes
 | Spawn | `(3, 36)`, feet on row 37 |
 | Door | `(197, 36)` |
 | Enemies | 9 mushroom men |
-| Hazards | 10 land mines, 33 spike tiles |
+| Hazards | 5 land mines, 33 spike tiles |
 | Moving parts | 4 moving platforms, 7 saws, 3 cannons |
 | Boss arena | columns 40–193, ground row 37 |
 
@@ -24,7 +24,7 @@ used for the tower climb and the descent.
 
 1. **Meadow (0–30).** A one-tile step after the spawn keeps the first mushroom's
    patrol from walking back onto an idle player. Then a readable mine/mushroom
-   gauntlet: mine at 10, mushroom at 14, mine at 19, mushroom at 24, mine at 27.
+   gauntlet: mine at 10, mushroom at 14, mushroom at 24, mine at 27.
 2. **First dash chasm (31–37).** A 7-tile gap over spikes. A running jump alone
    cannot clear it; jump + `Shift` dash can, and the double jump makes it a much
    safer hop.
@@ -40,7 +40,7 @@ used for the tower climb and the descent.
 6. **Tower top (125–132, row 13).** The lettuce floats at `(128, 12)`. A saw
    crosses the lift gap on the way up.
 7. **Descent (133–165).** Three floating ledges step back down to the ground.
-   Three saws guard the drop, and mines sit on two of the ledges. A cannon near
+   Three saws guard the drop, and a mine sits on one of the ledges. A cannon near
    the bottom punishes a careless landing.
 8. **Final dash gap (166–172).** Another 7-tile spike pit, clearable with a dash
    or a well-timed double jump. This is the last execution check before the boss.

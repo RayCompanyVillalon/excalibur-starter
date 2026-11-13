@@ -145,6 +145,21 @@ function drawWreckedCannon(): HTMLCanvasElement {
   return canvas;
 }
 
+/** Shared cannon textures; every level reuses the same three states. */
+const cannonSources: Record<'idle' | 'charged' | 'wrecked', ImageSource | null> = {
+  idle: null,
+  charged: null,
+  wrecked: null,
+};
+function cannonImage(state: 'idle' | 'charged' | 'wrecked'): ImageSource {
+  if (!cannonSources[state]) {
+    cannonSources[state] = ImageSource.fromHtmlCanvasElement(
+      state === 'wrecked' ? drawWreckedCannon() : drawCannon(state === 'charged'),
+    );
+  }
+  return cannonSources[state];
+}
+
 /**
  * A wall cannon that telegraphs, then fires a projectile. It can fire in a
  * fixed direction or aim at the player at the moment it starts charging.
@@ -171,9 +186,9 @@ export class Cannon extends Actor {
     this.fixedDir = spec.dir ? normalize(spec.dir) : null;
     this.cooldownMs = spec.delayMs ?? 700;
 
-    this.graphics.add('idle', new Sprite({ image: ImageSource.fromHtmlCanvasElement(drawCannon(false)) }));
-    this.graphics.add('charged', new Sprite({ image: ImageSource.fromHtmlCanvasElement(drawCannon(true)) }));
-    this.graphics.add('wrecked', new Sprite({ image: ImageSource.fromHtmlCanvasElement(drawWreckedCannon()) }));
+    this.graphics.add('idle', new Sprite({ image: cannonImage('idle') }));
+    this.graphics.add('charged', new Sprite({ image: cannonImage('charged') }));
+    this.graphics.add('wrecked', new Sprite({ image: cannonImage('wrecked') }));
     this.graphics.use('idle');
 
     if (this.fixedDir) {

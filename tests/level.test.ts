@@ -149,7 +149,7 @@ describe('Level 3', () => {
       );
 
     expect(count('M')).toBe(9);
-    expect(count('L')).toBe(10);
+    expect(count('L')).toBe(5);
     expect(count('S')).toBe(33);
     expect(info.platforms?.length).toBe(4);
     expect(info.saws?.length).toBe(7);

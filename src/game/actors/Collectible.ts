@@ -126,9 +126,104 @@ export function buildTomatoCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A crisp head of lettuce: Level 3's ingredient. */
+export function buildLettuceCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 34;
+  canvas.height = 26;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  // Pickup glow.
+  ctx.fillStyle = 'rgba(150, 235, 130, 0.16)';
+  ctx.beginPath();
+  ctx.ellipse(17, 13, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ruffled outer leaves: overlapping lobes in three shades of green.
+  const lobes: [number, number, number, number, number, string][] = [
+    [17, 7, 7.5, 5.5, 0, '#2f7a33'],
+    [10, 10, 7, 5.5, -0.7, '#358a39'],
+    [24, 10, 7, 5.5, 0.7, '#358a39'],
+    [8, 16, 6, 5, -0.35, '#3f9c42'],
+    [26, 16, 6, 5, 0.35, '#3f9c42'],
+    [17, 18, 8, 5.5, 0, '#2f7a33'],
+    [13, 13, 5.5, 4.5, -0.2, '#66c65a'],
+    [21, 13, 5.5, 4.5, 0.2, '#66c65a'],
+  ];
+  for (const [x, y, rx, ry, rotation, color] of lobes) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, rotation, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(24, 84, 30, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx - 0.5, ry - 0.5, rotation, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Pale, tender heart.
+  const heart = ctx.createRadialGradient(15, 11, 1, 17, 13, 8);
+  heart.addColorStop(0, '#eaf7c8');
+  heart.addColorStop(0.6, '#b6e07a');
+  heart.addColorStop(1, '#7cc35a');
+  ctx.fillStyle = heart;
+  ctx.beginPath();
+  ctx.ellipse(17, 13, 5.5, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Veins radiating from the heart.
+  ctx.strokeStyle = 'rgba(255, 255, 225, 0.55)';
+  ctx.lineWidth = 1;
+  for (const angle of [-0.9, -0.3, 0.3, 0.9]) {
+    ctx.beginPath();
+    ctx.moveTo(17, 14);
+    ctx.lineTo(17 + Math.cos(angle) * 9, 13 + Math.sin(angle) * 6);
+    ctx.stroke();
+  }
+
+  // Highlight.
+  ctx.fillStyle = 'rgba(255, 255, 230, 0.5)';
+  ctx.beginPath();
+  ctx.ellipse(13, 9, 3.5, 2, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ground shadow.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(17, 24.5, 11, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  return canvas;
+}
+
 /** Pick the ingredient art for the current level. */
 export function buildIngredientCanvas(ingredient: string): HTMLCanvasElement {
-  return ingredient.toLowerCase() === 'tomato' ? buildTomatoCanvas() : buildBreadCanvas();
+  switch (ingredient.toLowerCase()) {
+    case 'tomato':
+      return buildTomatoCanvas();
+    case 'lettuce':
+      return buildLettuceCanvas();
+    default:
+      return buildBreadCanvas();
+  }
+}
+
+/** One shared texture per ingredient; reloads should not allocate new ones. */
+const ingredientSources = new Map<string, ImageSource>();
+function ingredientImage(ingredient: string): ImageSource {
+  const key = ingredient.toLowerCase();
+  let image = ingredientSources.get(key);
+  if (!image) {
+    image = ImageSource.fromHtmlCanvasElement(buildIngredientCanvas(ingredient));
+    ingredientSources.set(key, image);
+  }
+  return image;
 }
 
 /**
@@ -152,9 +247,7 @@ export class Collectible extends Actor {
     this.ingredient = ingredient;
     this.baseY = pos.y - GAME.collectible.floatPx;
     this.pos.y = this.baseY;
-    this.graphics.use(
-      new Sprite({ image: ImageSource.fromHtmlCanvasElement(buildIngredientCanvas(ingredient)) }),
-    );
+    this.graphics.use(new Sprite({ image: ingredientImage(ingredient) }));
   }
 
   get isCollected(): boolean {
