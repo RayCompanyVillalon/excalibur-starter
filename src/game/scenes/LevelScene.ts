@@ -220,6 +220,10 @@ export class LevelScene extends Scene {
     this.backgroundColor = Color.fromHex(
       cave ? GAME.colors.caveBackground : GAME.colors.background,
     );
+    if (info.dark && !this.darkness) {
+      this.darkness = new DarknessPostProcessor();
+      (this as any)._engine.graphicsContext.addPostProcessor(this.darkness);
+    }
     if (this.darkness) {
       this.darkness.enabled = Boolean(info.dark);
     }
