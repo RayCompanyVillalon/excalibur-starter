@@ -153,11 +153,8 @@ export class LevelScene extends Scene {
   private darkness: DarknessPostProcessor | null = null;
 
   override onInitialize(engine: Engine): void {
-    // One screen-space lamp for the whole run; dark levels switch it on.
-    this.darkness = new DarknessPostProcessor();
-    engine.graphicsContext.addPostProcessor(this.darkness);
-
-    // Browsers only allow audio after a gesture, so resume the AudioContext and
+    this.hud.loadScore();
+    (this as any)._engine = engine;
     // start the loop on the first key press or click. Keep listening until the
     // context actually unlocks, then detach.
     const unlock = (): void => {
@@ -170,6 +167,13 @@ export class LevelScene extends Scene {
     };
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
+
+    // Listen for T key to toggle the stats panel overlay.
+    window.addEventListener('keydown', (ev) => {
+      if (ev.code === 'KeyT') {
+        this.hud.toggleStats();
+      }
+    });
 
     // `?level=2` boots straight into a level, which is handy for playtesting.
     const requested = Number(new URLSearchParams(window.location.search).get('level') ?? '1');
@@ -289,9 +293,6 @@ export class LevelScene extends Scene {
     if (keyboard.wasPressed(Keys.M)) {
       const muted = audio.toggleMute();
       this.hud.toast(muted ? 'Sound off' : 'Sound on', 1000);
-    }
-    if (keyboard.wasPressed(Keys.T)) {
-      this.hud.toggleStats();
     }
     if (keyboard.wasPressed(Keys.R)) {
       this.resetRun('Run reset');
