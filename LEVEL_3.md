@@ -26,7 +26,8 @@ used for the tower climb and the descent.
    patrol from walking back onto an idle player. Then a readable mine/mushroom
    gauntlet: mine at 10, mushroom at 14, mine at 19, mushroom at 24, mine at 27.
 2. **First dash chasm (31–37).** A 7-tile gap over spikes. A running jump alone
-   cannot clear it; jump + `Shift` dash can.
+   cannot clear it; jump + `Shift` dash can, and the double jump makes it a much
+   safer hop.
 3. **Shuttle landing (38–50).** A 13-tile spike chasm crossed on a shuttle
    platform that slides 8 tiles horizontally. One mushroom and one mine guard the
    landing.
@@ -41,8 +42,8 @@ used for the tower climb and the descent.
 7. **Descent (133–165).** Three floating ledges step back down to the ground.
    Three saws guard the drop, and mines sit on two of the ledges. A cannon near
    the bottom punishes a careless landing.
-8. **Final dash gap (166–172).** Another 7-tile spike pit. This is the last
-   execution check before the boss.
+8. **Final dash gap (166–172).** Another 7-tile spike pit, clearable with a dash
+   or a well-timed double jump. This is the last execution check before the boss.
 9. **Worm arena (173–199).** Two mushrooms patrol the arena floor. The door is at
    column 197, just outside the worm's eruption zone.
 

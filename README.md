@@ -20,10 +20,11 @@ run.
 | --- | --- |
 | Move | `A` / `D` or `←` / `→` |
 | Jump | `Space`, `W` or `↑` (hold for height) |
+| Double jump | Tap jump again in midair (once per airtime) |
 | Dash | `Shift` (one air dash per jump) |
 | Parry | `F` (timed ~170 ms window, ~650 ms cooldown) |
 | Stomp | Land on a mushroom's cap |
-| Next level | `N` (after the ingredient is secured) |
+| Next level | Loads automatically after a clear (or `N` to skip the wait) |
 | Respawn / restart run | `R` |
 | Mute / unmute | `M` |
 | Debug readout | `F1` |
@@ -91,6 +92,8 @@ Jump feel lives in `src/game/player/controller.ts`:
 
 - gravity `2200 px/s²`, terminal fall `900 px/s`;
 - jump impulse `780 px/s` (~4.3 tiles of height);
+- **double jump** — a second jump press in midair gives another `720 px/s` boost,
+  once per airtime. Landing or stomping a mushroom refreshes it;
 - releasing the button early cuts upward velocity to 45 % (variable height);
 - **coyote time** 100 ms and **jump buffering** 120 ms;
 - **dash** `Shift` bursts to 700 px/s for 170 ms with a 420 ms cooldown. Gravity is
@@ -135,7 +138,8 @@ Level 2 — Mushroom Men — is the difficulty step up:
 7. the final 7-tile dash gap, a spike-lined valley and the summit door.
 
 Append `?level=2` to the URL to boot straight into Level 2 for playtesting. After
-securing the ingredient, `N` loads the next level.
+securing the ingredient, the next level loads automatically after a short pause;
+`N` skips the wait.
 
 Level 3 — The Giant Worm — is the Section One finale:
 

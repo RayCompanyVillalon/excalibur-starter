@@ -31,6 +31,8 @@ export interface PlayerState {
   dashDir: 1 | -1;
   /** One air dash per airtime, refreshed when the player touches ground. */
   airDashReady: boolean;
+  /** One air jump per airtime, refreshed when the player touches ground. */
+  airJumpReady: boolean;
   /** Milliseconds of active parry window left; 0 means not parrying. */
   parryMsLeft: number;
   /** Milliseconds before another parry is allowed. */
@@ -60,6 +62,7 @@ export function createPlayerState(spawn: { x: number; y: number }): PlayerState 
     dashCooldownMs: 0,
     dashDir: 1,
     airDashReady: true,
+    airJumpReady: true,
     parryMsLeft: 0,
     parryCooldownMs: 0,
     parryGraceMs: 0,
@@ -94,6 +97,7 @@ export function stepPlayer(
   state.parryGraceMs = Math.max(0, state.parryGraceMs - dtMs);
   if (state.onGround) {
     state.airDashReady = true;
+    state.airJumpReady = true;
   }
 
   // Start a parry. The window is deliberately short so it rewards timing.
@@ -146,6 +150,12 @@ export function stepPlayer(
       state.coyoteMs = 0;
       state.onGround = false;
       state.jumpHeld = true;
+    } else if (state.jumpBufferMs > 0 && state.airJumpReady) {
+      // Double jump: a second press in midair, once per airtime.
+      state.body.vy = -cfg.airJumpSpeed;
+      state.jumpBufferMs = 0;
+      state.airJumpReady = false;
+      state.jumpHeld = true;
     }
 
     // Releasing early cuts the jump short for variable height.
@@ -175,6 +185,7 @@ export function stepPlayer(
   }
   if (state.onGround) {
     state.airDashReady = true;
+    state.airJumpReady = true;
   }
 
   return state;
@@ -191,6 +202,9 @@ export function bouncePlayer(state: PlayerState, speed: number): void {
   state.jumpHeld = false;
   state.coyoteMs = 0;
   state.jumpBufferMs = 0;
+  // A stomp refreshes the air jump, so a well-timed bounce can be chained
+  // into another hop.
+  state.airJumpReady = true;
 }
 
 /**

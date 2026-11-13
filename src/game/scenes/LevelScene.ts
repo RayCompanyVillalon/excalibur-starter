@@ -105,6 +105,8 @@ export class LevelScene extends Scene {
   private stepTimer = 0;
   private respawnTimer = 0;
   private respawning = false;
+  /** Countdown to auto-loading the next level after a clear, in ms. */
+  private advanceTimerMs = 0;
   private goalHintMs = 0;
   private bossIntroShown = false;
   private bossEnragedShown = false;
@@ -149,6 +151,7 @@ export class LevelScene extends Scene {
     this.ingredientCollected = false;
     this.respawning = false;
     this.respawnTimer = 0;
+    this.advanceTimerMs = 0;
     this.stepTimer = 0;
     this.goalHintMs = 0;
     this.bossIntroShown = false;
@@ -231,7 +234,17 @@ export class LevelScene extends Scene {
       this.hud.toast(this.flightMode ? 'Flight: cursor moves player' : 'Flight off', 1200);
     }
 
-    if (this.complete || this.respawning) {
+    if (this.complete) {
+      // Auto-advance to the next level after a short victory beat.
+      if (this.levelIndex + 1 < LEVELS.length) {
+        this.advanceTimerMs -= elapsed;
+        if (this.advanceTimerMs <= 0) {
+          this.loadLevel(this.levelIndex + 1);
+        }
+      }
+      return;
+    }
+    if (this.respawning) {
       return;
     }
 
@@ -1092,8 +1105,9 @@ export class LevelScene extends Scene {
     const time = this.hud.stopTimer(true);
     const best = this.hud.bestTimeMs;
     const note = best !== null && best < time ? `best ${formatTime(best)}` : 'new best!';
-    const next =
-      this.levelIndex + 1 < LEVELS.length ? ' · N next level' : ' · R to run again';
+    const hasNext = this.levelIndex + 1 < LEVELS.length;
+    const next = hasNext ? ' · next level…' : ' · R to run again';
+    this.advanceTimerMs = hasNext ? GAME.level.advanceDelayMs : 0;
     this.hud.toast(
       `${this.levelInfo.ingredient} secured — ${formatTime(time)} · ${note}${next}`,
       6000,
@@ -1113,6 +1127,7 @@ export class LevelScene extends Scene {
     this.complete = false;
     this.respawning = false;
     this.respawnTimer = 0;
+    this.advanceTimerMs = 0;
     this.stepTimer = 0;
     this.goalHintMs = 0;
     this.ingredientCollected = false;

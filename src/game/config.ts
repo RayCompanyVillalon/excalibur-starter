@@ -28,6 +28,8 @@ export const GAME = {
     jumpCut: 0.45,
     coyoteMs: 100,
     jumpBufferMs: 120,
+    /** Upward speed of the second (air) jump, in px/s. */
+    airJumpSpeed: 720,
   },
   dash: {
     /** Horizontal speed while dashing, in px/s. */
@@ -62,6 +64,8 @@ export const GAME = {
   },
   level: {
     killPlanePadding: 160,
+    /** Pause after clearing a level before the next one loads, in ms. */
+    advanceDelayMs: 2200,
   },
   collectible: {
     /** How many px above the tile surface to draw the collectible. */

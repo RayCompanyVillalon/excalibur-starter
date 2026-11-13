@@ -91,17 +91,70 @@ describe('stepPlayer', () => {
     expect(state.body.vy).toBeLessThan(0);
   });
 
-  it('refuses the jump once coyote time has expired', () => {
+  it('refuses a ground jump once coyote time has expired and the air jump is spent', () => {
     const state = airborne(0);
     state.coyoteMs = 0;
+    state.airJumpReady = false;
 
     stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [], DT);
 
     expect(state.body.vy).toBeGreaterThan(0);
   });
 
+  it('jumps a second time in midair', () => {
+    const state = grounded();
+    const jump: Intent = { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false };
+
+    stepPlayer(state, jump, [], DT);
+    expect(state.body.vy).toBeLessThan(0);
+
+    // Fall for a few frames, then tap jump again.
+    for (let i = 0; i < 5; i += 1) {
+      stepPlayer(state, IDLE, [], DT);
+    }
+    expect(state.airJumpReady).toBe(true);
+
+    stepPlayer(state, jump, [], DT);
+
+    expect(state.airJumpReady).toBe(false);
+    expect(state.body.vy).toBeLessThan(-GAME.player.airJumpSpeed + 100);
+  });
+
+  it('allows only one air jump per airtime', () => {
+    const state = grounded();
+    const jump: Intent = { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false };
+
+    stepPlayer(state, jump, [], DT);
+    stepPlayer(state, IDLE, [], DT);
+    stepPlayer(state, jump, [], DT);
+    expect(state.airJumpReady).toBe(false);
+
+    // A third press in the air does not launch again.
+    for (let i = 0; i < 10; i += 1) {
+      stepPlayer(state, IDLE, [], DT);
+    }
+    const before = state.body.vy;
+    stepPlayer(state, jump, [], DT);
+
+    expect(state.body.vy).toBeGreaterThanOrEqual(before);
+  });
+
+  it('refreshes the air jump on landing', () => {
+    const state = airborne(0);
+    state.airJumpReady = false;
+
+    for (let i = 0; i < 30 && !state.onGround; i += 1) {
+      stepPlayer(state, IDLE, [GROUND], DT);
+    }
+
+    expect(state.onGround).toBe(true);
+    expect(state.airJumpReady).toBe(true);
+  });
+
   it('queues a jump pressed just before landing (jump buffer)', () => {
     const state = airborne(100 - GAME.player.height - 5);
+    // The air jump is already spent, so this press should buffer for landing.
+    state.airJumpReady = false;
     stepPlayer(state, { moveX: 0, jumpPressed: true, jumpHeld: true, dashPressed: false, parryPressed: false }, [GROUND], DT);
     expect(state.jumpBufferMs).toBeGreaterThan(0);
 
@@ -287,6 +340,7 @@ describe('stomp bounce', () => {
     state.jumpHeld = true;
     state.jumpBufferMs = GAME.player.jumpBufferMs;
     state.dashMsLeft = GAME.dash.durationMs;
+    state.airJumpReady = false;
 
     bouncePlayer(state, GAME.enemies.mushroom.stompBounce);
 
@@ -295,6 +349,8 @@ describe('stomp bounce', () => {
     expect(state.jumpHeld).toBe(false);
     expect(state.jumpBufferMs).toBe(0);
     expect(state.dashMsLeft).toBe(0);
+    // A stomp gives the air jump back.
+    expect(state.airJumpReady).toBe(true);
   });
 
   it('rises for a while after the bounce', () => {
