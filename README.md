@@ -27,7 +27,7 @@ run.
 | Next level | Loads automatically after a clear (or `N` to skip the wait) |
 | Respawn / restart run | `R` |
 | Mute / unmute | `M` |
-| Debug readout | `F1` |
+| Debug overlay / level select | `F1` (then `1`–`3` or click a level) |
 
 The clock starts on your first movement, jump or dash input. Dying or pressing `R`
 resets the run, and your best time for the level is stored in `localStorage`.
