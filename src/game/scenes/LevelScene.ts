@@ -411,8 +411,7 @@ export class LevelScene extends Scene {
     );
     this.camera.pos.setTo(focus.x, focus.y);
 
-    // Feed the lamp shader the player's screen-space centre. The screen texture
-    // is in logical resolution units, which is what worldToScreen returns.
+    // Feed the lamp shader the player's screen-space centre.
     if (this.darkness?.enabled) {
       const center = this.playerCenter();
       const screen = engine.worldToScreenCoordinates(new Vector(center.x, center.y));
@@ -421,6 +420,13 @@ export class LevelScene extends Scene {
         engine.screen.resolution.width,
         engine.screen.resolution.height,
       );
+    }
+
+    // Update spider knowledge of the player position for seeking.
+    const pCenter = this.playerCenter();
+    for (const spider of this.spiders) {
+      spider.playerX = pCenter.x;
+      spider.playerY = pCenter.y;
     }
 
     if (this.hud.debugOn) {
@@ -863,8 +869,9 @@ export class LevelScene extends Scene {
         }
         const anchorX = (col + 0.5) * tile;
         const anchorY = row * tile;
-        const web = new SpiderWeb(anchorX, anchorY);
         const spider = new Spider(anchorX, anchorY);
+        spider.setSolids(this.level.solids);
+        const web = new SpiderWeb(anchorX, anchorY);
         this.spiders.push(spider);
         this.add(web);
         this.add(spider);

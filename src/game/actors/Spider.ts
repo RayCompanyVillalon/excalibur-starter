@@ -1,7 +1,7 @@
 import { Actor, ImageSource, Sprite, Vector } from 'excalibur';
 
 import { GAME } from '../config';
-import type { Aabb } from '../physics/aabb';
+import { overlaps, type Aabb } from '../physics/aabb';
 
 /** Pixel-art cave spider: eight legs, a fat abdomen and four red eyes. */
 export function buildSpiderCanvas(): HTMLCanvasElement {
@@ -14,7 +14,6 @@ export function buildSpiderCanvas(): HTMLCanvasElement {
   }
   ctx.imageSmoothingEnabled = false;
 
-  // Legs first, so the body covers their roots.
   ctx.strokeStyle = '#1d1426';
   ctx.lineWidth = 2;
   ctx.lineCap = 'round';
@@ -36,7 +35,6 @@ export function buildSpiderCanvas(): HTMLCanvasElement {
     ctx.stroke();
   }
 
-  // Abdomen.
   ctx.fillStyle = '#33203f';
   ctx.beginPath();
   ctx.ellipse(21, 13, 9, 7, -0.1, 0, Math.PI * 2);
@@ -46,7 +44,6 @@ export function buildSpiderCanvas(): HTMLCanvasElement {
   ctx.ellipse(20, 11.5, 6.5, 4.5, -0.15, 0, Math.PI * 2);
   ctx.fill();
 
-  // Pale hourglass marking.
   ctx.fillStyle = '#c9a6d8';
   ctx.beginPath();
   ctx.moveTo(19, 8);
@@ -56,13 +53,11 @@ export function buildSpiderCanvas(): HTMLCanvasElement {
   ctx.closePath();
   ctx.fill();
 
-  // Cephalothorax.
   ctx.fillStyle = '#24152e';
   ctx.beginPath();
   ctx.ellipse(11, 13, 6.5, 5.5, 0.1, 0, Math.PI * 2);
   ctx.fill();
 
-  // Eyes.
   ctx.fillStyle = '#ff4a4a';
   for (const [ex, ey] of [
     [8.5, 11],
@@ -78,7 +73,6 @@ export function buildSpiderCanvas(): HTMLCanvasElement {
   ctx.fillRect(8, 10, 1, 1);
   ctx.fillRect(11.5, 9.5, 1, 1);
 
-  // Fangs.
   ctx.fillStyle = '#d9c7e4';
   ctx.beginPath();
   ctx.moveTo(6, 16);
@@ -96,7 +90,6 @@ export function buildSpiderCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
-/** A flattened spider for the stomp effect. */
 export function buildSquashedSpiderCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = 34;
@@ -107,13 +100,11 @@ export function buildSquashedSpiderCanvas(): HTMLCanvasElement {
   }
   ctx.imageSmoothingEnabled = false;
 
-  // Ground shadow.
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
   ctx.ellipse(17, 21, 15, 2.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Flat body.
   ctx.fillStyle = '#33203f';
   ctx.beginPath();
   ctx.ellipse(17, 19, 13, 4.5, 0, 0, Math.PI * 2);
@@ -123,7 +114,6 @@ export function buildSquashedSpiderCanvas(): HTMLCanvasElement {
   ctx.ellipse(16, 18, 9, 2.6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Splayed legs.
   ctx.strokeStyle = '#1d1426';
   ctx.lineWidth = 2;
   for (const [x0, y0, x1, y1] of [
@@ -138,7 +128,6 @@ export function buildSquashedSpiderCanvas(): HTMLCanvasElement {
     ctx.stroke();
   }
 
-  // X eyes.
   ctx.strokeStyle = '#ff6a6a';
   ctx.lineWidth = 1.5;
   for (const ex of [12, 21]) {
@@ -164,19 +153,21 @@ function spiderImage(squashed: boolean): ImageSource {
   return normalSource;
 }
 
+type State = 'descending' | 'grounding' | 'seeking' | 'flung' | 'squashed';
+
 /**
- * A giant cave spider that lowers itself from a ceiling anchor on a web,
- * then crawls back and forth along the strand. Touching it kills the player;
- * it can be parried (or stomped) to remove it.
+ * A giant cave spider that drops from a ceiling anchor on a web down to the
+ * ground below, then seeks out the player horizontally.  Parrying (F) flings
+ * it away; stomping flattens it.
  */
 export class Spider extends Actor {
   private readonly spawnX: number;
   private readonly spawnY: number;
+  private readonly anchorY: number;
   private readonly patrolLeft: number;
   private readonly patrolRight: number;
-  private readonly strandY: number;
-  private readonly targetY: number;
-  private state: 'descending' | 'patrolling' | 'flung' | 'squashed' = 'descending';
+  private groundY = 0;
+  private state: State = 'descending';
   private dir = -1;
   private pauseTimer = 0;
   private paused = false;
@@ -184,10 +175,18 @@ export class Spider extends Actor {
   private flungVy = 0;
   private flungMs = 0;
   private squashTimer = 0;
+  private solidsList: readonly Aabb[] = [];
+  /** Player position – injected by the scene each frame. */
+  playerX = 0;
+  playerY = 0;
+  private readonly aggroRange: number;
+  private readonly groundSpeed: number;
   private readonly normalSprite: Sprite;
   private readonly squashedSprite: Sprite;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   constructor(anchorX: number, anchorY: number) {
+    void anchorX; void anchorY;
     const cfg = GAME.enemies.spider;
     super({
       pos: new Vector(anchorX, anchorY + cfg.height / 2),
@@ -197,25 +196,25 @@ export class Spider extends Actor {
       z: 6,
     });
 
+    this.anchorY = anchorY;
     this.spawnX = anchorX;
     this.spawnY = anchorY + cfg.height / 2;
-    this.strandY = anchorY + cfg.dropTiles * GAME.world.tile;
-    this.targetY = this.strandY + cfg.height / 2;
 
     const half = cfg.strandHalfTiles * GAME.world.tile;
     this.patrolLeft = anchorX - half + cfg.width / 2;
     this.patrolRight = anchorX + half - cfg.width / 2;
 
+    this.aggroRange = cfg.strandHalfTiles * GAME.world.tile * 2;
+    this.groundSpeed = cfg.patrolSpeed * 1.4;
+
     this.normalSprite = new Sprite({ image: spiderImage(false) });
     this.squashedSprite = new Sprite({ image: spiderImage(true) });
     this.graphics.use(this.normalSprite);
-    // The 34x24 sprite is wider than the 30x22 body; centre it on the body.
     this.graphics.offset = new Vector(-2, -1);
   }
 
-  /** Where the horizontal web strand sits, for drawing the web. */
-  get webStrandY(): number {
-    return this.strandY;
+  setSolids(solids: readonly Aabb[]): void {
+    this.solidsList = solids;
   }
 
   get isAlive(): boolean {
@@ -224,6 +223,11 @@ export class Spider extends Actor {
 
   get isDangerous(): boolean {
     return this.isAlive;
+  }
+
+  /** Y of the ground surface the spider landed on. */
+  get groundSurfaceY(): number {
+    return this.groundY || this.pos.y + this.height / 2;
   }
 
   bounds(): Aabb {
@@ -235,7 +239,6 @@ export class Spider extends Actor {
     };
   }
 
-  /** Put the spider back on its ceiling anchor for a fresh run. */
   reset(): void {
     this.state = 'descending';
     this.dir = -1;
@@ -245,28 +248,23 @@ export class Spider extends Actor {
     this.flungVy = 0;
     this.flungMs = 0;
     this.squashTimer = 0;
+    this.groundY = 0;
     this.pos.setTo(this.spawnX, this.spawnY);
     this.rotation = 0;
     this.graphics.use(this.normalSprite);
     this.graphics.opacity = 1;
   }
 
-  /** Flatten the spider after the player lands on it. */
   squash(): void {
-    if (!this.isAlive) {
-      return;
-    }
+    if (!this.isAlive) return;
     this.state = 'squashed';
     this.squashTimer = GAME.enemies.spider.squashMs;
     this.graphics.use(this.squashedSprite);
     this.graphics.opacity = 1;
   }
 
-  /** Launch the spider away after a parry. */
   fling(direction: 1 | -1): void {
-    if (!this.isAlive) {
-      return;
-    }
+    if (!this.isAlive) return;
     this.state = 'flung';
     this.flungVx = direction * GAME.parry.flingSpeed;
     this.flungVy = -GAME.parry.flingLift;
@@ -276,9 +274,14 @@ export class Spider extends Actor {
   }
 
   override onPreUpdate(_engine: unknown, elapsed: number): void {
+    const cfg = GAME.enemies.spider;
+
     if (this.state === 'flung') {
       const dt = elapsed / 1000;
-      this.flungVy = Math.min(this.flungVy + GAME.physics.gravity * dt, GAME.physics.maxFallSpeed);
+      this.flungVy = Math.min(
+        this.flungVy + GAME.physics.gravity * dt,
+        GAME.physics.maxFallSpeed,
+      );
       this.pos.x += this.flungVx * dt;
       this.pos.y += this.flungVy * dt;
       this.rotation += dt * 14;
@@ -289,21 +292,48 @@ export class Spider extends Actor {
 
     if (this.state === 'squashed') {
       this.squashTimer = Math.max(0, this.squashTimer - elapsed);
-      this.graphics.opacity = this.squashTimer / GAME.enemies.spider.squashMs;
+      this.graphics.opacity = this.squashTimer / cfg.squashMs;
       return;
     }
 
     const dt = elapsed / 1000;
 
+    // 1. Descend from ceiling down to the horizontal strand.
     if (this.state === 'descending') {
-      this.pos.y += GAME.enemies.spider.dropSpeed * dt;
-      if (this.pos.y >= this.targetY) {
-        this.pos.y = this.targetY;
-        this.state = 'patrolling';
+      const strandY = this.anchorY + cfg.dropTiles * GAME.world.tile;
+      this.pos.y += cfg.dropSpeed * dt;
+      if (this.pos.y >= strandY) {
+        this.pos.y = strandY;
+        this.state = 'grounding';
       }
       return;
     }
 
+    // 2. Keep dropping from the strand until hitting solid ground.
+    if (this.state === 'grounding') {
+      this.pos.y += cfg.dropSpeed * 1.5 * dt;
+      const probe: Aabb = {
+        x: this.pos.x - this.width / 2,
+        y: this.pos.y + this.height / 2 - 2,
+        width: this.width,
+        height: 4,
+      };
+      const landed = this.solidsList.some((solid) => overlaps(probe, solid));
+      if (landed || this.pos.y > 2000) {
+        if (landed) {
+          const hits = this.solidsList.filter((solid) => overlaps(probe, solid));
+          if (hits.length > 0) {
+            const top = Math.min(...hits.map((s) => s.y - 1));
+            this.pos.y = top;
+            this.groundY = top - this.height / 2;
+          }
+        }
+        this.state = 'seeking';
+      }
+      return;
+    }
+
+    // 3. Seek the player on the ground.
     if (this.paused) {
       this.pauseTimer -= elapsed;
       if (this.pauseTimer <= 0) {
@@ -313,58 +343,73 @@ export class Spider extends Actor {
       return;
     }
 
-    this.pos.x += this.dir * GAME.enemies.spider.patrolSpeed * dt;
+    const dx = this.playerX - this.pos.x;
+    if (Math.abs(dx) < this.aggroRange && Math.abs(dx) > 4) {
+      this.dir = dx > 0 ? 1 : -1;
+    }
+
+    this.pos.x += this.dir * this.groundSpeed * dt;
     if (this.pos.x <= this.patrolLeft || this.pos.x >= this.patrolRight) {
       this.pos.x = Math.max(this.patrolLeft, Math.min(this.patrolRight, this.pos.x));
       this.paused = true;
-      this.pauseTimer = GAME.enemies.spider.pauseMs;
+      this.pauseTimer = cfg.pauseMs;
+    }
+
+    // If the ground vanishes beneath the spider, fall again.
+    const feet: Aabb = {
+      x: this.pos.x - this.width / 2,
+      y: this.pos.y + this.height / 2 - 1,
+      width: this.width,
+      height: 4,
+    };
+    if (!this.solidsList.some((solid) => overlaps(feet, solid))) {
+      this.state = 'grounding';
     }
   }
 }
 
-/** Shared web textures keyed by strand width and drop length. */
 const webSources = new Map<string, ImageSource>();
+
+function buildWebCanvas(strandWidth: number, dropPx: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = strandWidth;
+  canvas.height = dropPx + 1;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.strokeStyle = 'rgba(214, 224, 255, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.lineCap = 'round';
+
+  const cx = strandWidth / 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, dropPx);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(1, dropPx);
+  ctx.lineTo(strandWidth - 1, dropPx);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(214, 224, 255, 0.26)';
+  for (const offset of [0.16, 0.34, 0.66, 0.84]) {
+    const x = strandWidth * offset;
+    ctx.beginPath();
+    ctx.moveTo(cx, dropPx * 0.45);
+    ctx.lineTo(x, dropPx);
+    ctx.stroke();
+  }
+
+  return canvas;
+}
 
 function webImage(strandWidth: number, dropPx: number): ImageSource {
   const key = `${strandWidth}x${dropPx}`;
   let image = webSources.get(key);
   if (!image) {
-    const canvas = document.createElement('canvas');
-    canvas.width = strandWidth;
-    canvas.height = dropPx + 1;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('2D canvas context unavailable');
-    }
-    ctx.strokeStyle = 'rgba(214, 224, 255, 0.5)';
-    ctx.lineWidth = 1;
-    ctx.lineCap = 'round';
-
-    const cx = strandWidth / 2;
-
-    // Vertical thread from the ceiling to the patrol strand.
-    ctx.beginPath();
-    ctx.moveTo(cx, 0);
-    ctx.lineTo(cx, dropPx);
-    ctx.stroke();
-
-    // Horizontal patrol strand.
-    ctx.beginPath();
-    ctx.moveTo(1, dropPx);
-    ctx.lineTo(strandWidth - 1, dropPx);
-    ctx.stroke();
-
-    // A few diagonal cross-threads so the web reads as silk, not a wire.
-    ctx.strokeStyle = 'rgba(214, 224, 255, 0.26)';
-    for (const offset of [0.16, 0.34, 0.66, 0.84]) {
-      const x = strandWidth * offset;
-      ctx.beginPath();
-      ctx.moveTo(cx, dropPx * 0.45);
-      ctx.lineTo(x, dropPx);
-      ctx.stroke();
-    }
-
-    image = ImageSource.fromHtmlCanvasElement(canvas);
+    image = ImageSource.fromHtmlCanvasElement(buildWebCanvas(strandWidth, dropPx));
     webSources.set(key, image);
   }
   return image;
@@ -372,7 +417,12 @@ function webImage(strandWidth: number, dropPx: number): ImageSource {
 
 /** The static silk a Spider hangs from. */
 export class SpiderWeb extends Actor {
+  private readonly strandWidth: number;
+  private readonly baseDropPx: number;
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   constructor(anchorX: number, anchorY: number) {
+    void anchorX; void anchorY;
     const cfg = GAME.enemies.spider;
     const width = cfg.strandHalfTiles * 2 * GAME.world.tile;
     const dropPx = cfg.dropTiles * GAME.world.tile;
@@ -383,6 +433,18 @@ export class SpiderWeb extends Actor {
       height: dropPx + 1,
       z: 5,
     });
+    this.strandWidth = width;
+    this.baseDropPx = dropPx;
     this.graphics.use(new Sprite({ image: webImage(width, dropPx) }));
+  }
+
+  /** Extend the web canvas to reach the actual ground. */
+  extendToGround(groundY: number): void {
+    const newDrop = Math.max(this.baseDropPx, Math.ceil(groundY));
+    if (newDrop <= this.height) return;
+    const canvas = buildWebCanvas(this.strandWidth, newDrop);
+    const image = ImageSource.fromHtmlCanvasElement(canvas);
+    this.graphics.use(new Sprite({ image }));
+    (this as any).height = newDrop;
   }
 }
