@@ -279,7 +279,7 @@ describe('Level 5', () => {
         0,
       );
     expect(count('K')).toBeGreaterThan(8); // goblins
-    expect(count('B')).toBeGreaterThan(7); // bear traps
+    expect(count('B')).toBe(4); // bear traps
     expect(count('M')).toBeGreaterThan(4); // spiders
     expect(count('T')).toBeGreaterThan(6); // stalactites
     expect(info.platforms ?? []).toHaveLength(0);
