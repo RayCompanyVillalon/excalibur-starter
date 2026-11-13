@@ -175,6 +175,18 @@ export function buildWormWarningCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** Shared worm textures; a level reload should not rebuild them. */
+let wormBodySource: ImageSource | null = null;
+let wormWarningSource: ImageSource | null = null;
+function wormImage(warning: boolean): ImageSource {
+  if (warning) {
+    wormWarningSource ??= ImageSource.fromHtmlCanvasElement(buildWormWarningCanvas());
+    return wormWarningSource;
+  }
+  wormBodySource ??= ImageSource.fromHtmlCanvasElement(buildWormCanvas());
+  return wormBodySource;
+}
+
 /**
  * The Giant Worm boss — burrows under the arena, telegraphs a spot with a
  * dust mound, then erupts. It tracks the player's position before each strike
@@ -210,11 +222,11 @@ export class WormBoss extends Actor {
     // Origin at the bottom-center means scale animations grow out of the
     // ground instead of shrinking towards the middle of the sprite.
     this.bodySprite = new Sprite({
-      image: ImageSource.fromHtmlCanvasElement(buildWormCanvas()),
+      image: wormImage(false),
       origin: new Vector(BODY_WIDTH / 2, BODY_HEIGHT),
     });
     this.warningSprite = new Sprite({
-      image: ImageSource.fromHtmlCanvasElement(buildWormWarningCanvas()),
+      image: wormImage(true),
       origin: new Vector(BODY_WIDTH / 2, BODY_HEIGHT),
     });
 

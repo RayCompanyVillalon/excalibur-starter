@@ -38,6 +38,15 @@ export function buildLandMineCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** One shared mine texture; level reloads should not allocate a new one. */
+let mineSource: ImageSource | null = null;
+function mineImage(): ImageSource {
+  if (!mineSource) {
+    mineSource = ImageSource.fromHtmlCanvasElement(buildLandMineCanvas());
+  }
+  return mineSource;
+}
+
 /**
  * A land mine hazard. Sits on the ground and explodes when the player
  * touches it, dealing a gruesome death.
@@ -56,7 +65,7 @@ export class LandMine extends Actor {
       z: 4,
     });
 
-    const image = ImageSource.fromHtmlCanvasElement(buildLandMineCanvas());
+    const image = mineImage();
     this.sprite = new Sprite({ image });
     this.graphics.use(this.sprite);
     this.graphics.offset = new Vector(-2, -2);

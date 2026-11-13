@@ -58,6 +58,17 @@ export function buildSawCanvas(radius: number): HTMLCanvasElement {
   return canvas;
 }
 
+/** Cache saw textures by radius; levels reuse the same handful of sizes. */
+const sawSources = new Map<number, ImageSource>();
+function sawImage(radius: number): ImageSource {
+  let image = sawSources.get(radius);
+  if (!image) {
+    image = ImageSource.fromHtmlCanvasElement(buildSawCanvas(radius));
+    sawSources.set(radius, image);
+  }
+  return image;
+}
+
 /**
  * A spinning saw blade that sweeps along a straight track. Contact kills.
  */
@@ -90,7 +101,7 @@ export class Saw extends Actor {
     this.phaseMs = (spec.phase ?? 0) * spec.periodMs;
     this.radiusPx = radius;
 
-    const image = ImageSource.fromHtmlCanvasElement(buildSawCanvas(radius));
+    const image = sawImage(radius);
     this.graphics.use(new Sprite({ image }));
   }
 
