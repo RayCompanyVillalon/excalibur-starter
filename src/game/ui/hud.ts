@@ -1,5 +1,9 @@
 import { formatTime } from './time';
 
+/** localStorage key for the cumulative score. */
+const SCORE_KEY = 'excalibur-starter:score';
+const DEATHS_KEY = 'excalibur-starter:deaths';
+
 /** Small DOM overlay: debug readout (F1), transient messages, and speedrun clock. */
 export class Hud {
   private readonly debugPanel = document.getElementById('debug');
@@ -10,6 +14,10 @@ export class Hud {
   private readonly levelEl = document.getElementById('level-label');
   private readonly timerEl = document.getElementById('timer');
   private readonly bestEl = document.getElementById('best-time');
+  private readonly scoreEl = document.getElementById('score');
+  private readonly deathsEl = document.getElementById('deaths');
+  private _score = 0;
+  private _deaths = 0;
 
   private debugVisible = false;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -31,6 +39,65 @@ export class Hud {
 
   get bestTimeMs(): number | null {
     return this.bestMs;
+  }
+
+  get score(): number {
+    return this._score;
+  }
+
+  get deaths(): number {
+    return this._deaths;
+  }
+
+  /** Load the cumulative score and deaths from localStorage. */
+  loadScore(): void {
+    try {
+      const raw = window.localStorage.getItem(SCORE_KEY);
+      this._score = raw ? Math.max(0, Number(raw)) : 0;
+    } catch { this._score = 0; }
+    try {
+      const raw = window.localStorage.getItem(DEATHS_KEY);
+      this._deaths = raw ? Math.max(0, Number(raw)) : 0;
+    } catch { this._deaths = 0; }
+    this.renderScore();
+  }
+
+  /** Add points to the cumulative score. */
+  addScore(points: number): void {
+    this._score += points;
+    this.saveScore();
+    this.renderScore();
+  }
+
+  /** Increment the death counter. */
+  addDeath(): void {
+    this._deaths += 1;
+    this.saveScore();
+    this.renderScore();
+  }
+
+  /** Reset score for a new full run (TODO). */
+  resetScore(): void {
+    this._score = 0;
+    this._deaths = 0;
+    this.saveScore();
+    this.renderScore();
+  }
+
+  private saveScore(): void {
+    try {
+      window.localStorage.setItem(SCORE_KEY, String(this._score));
+      window.localStorage.setItem(DEATHS_KEY, String(this._deaths));
+    } catch { /* storage unavailable */ }
+  }
+
+  private renderScore(): void {
+    if (this.scoreEl) {
+      this.scoreEl.textContent = String(this._score).padStart(4, '0');
+    }
+    if (this.deathsEl) {
+      this.deathsEl.textContent = `☠ ${this._deaths}`;
+    }
   }
 
   toggleDebug(): void {

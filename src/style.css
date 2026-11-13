@@ -238,9 +238,39 @@ kbd {
   color: var(--green);
 }
 
+.score-box {
+  position: absolute;
+  top: 9.5%;
+  right: 3.4%;
+  text-align: right;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
+
+.score-label {
+  font-size: clamp(7px, 0.6vw, 9px);
+  letter-spacing: 0.42em;
+  color: rgba(242, 176, 74, 0.6);
+}
+
+.score {
+  margin-top: 1px;
+  font-size: clamp(16px, 1.8vw, 24px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: #f2d87a;
+}
+
+.deaths {
+  margin-top: 0;
+  font-size: clamp(9px, 0.7vw, 11px);
+  letter-spacing: 0.12em;
+  color: rgba(220, 60, 60, 0.7);
+}
+
 .timer-box {
   position: absolute;
-  top: 4.2%;
+  top: 9.5%;
   right: 3.4%;
   text-align: right;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);

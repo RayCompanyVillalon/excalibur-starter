@@ -505,6 +505,7 @@ export class LevelScene extends Scene {
           `level  ${this.levelInfo.section} — ${this.levelInfo.name}`,
           `item  ${this.ingredientCollected ? '✓' : '✗'} ${this.levelInfo.ingredient}`,
           `time  ${formatTime(this.hud.timeMs)}`,
+          `score ${this.hud.score}  deaths ${this.hud.deaths}`,
           `shots ${this.projectiles.length}`,
           `spiders ${this.spiders.filter((spider) => spider.isAlive).length}/${this.spiders.length}`,
           `spikes ${this.stalactites.filter((stalactite) => stalactite.isDangerous).length}/${this.stalactites.length}`,
@@ -1488,6 +1489,7 @@ export class LevelScene extends Scene {
   // ─── Game events ────────────────────────────────────────────────────
 
   private pickupCollectible(): void {
+    this.hud.addScore(500);
     if (!this.collectible || this.collectible.isCollected) {
       return;
     }
@@ -1499,6 +1501,9 @@ export class LevelScene extends Scene {
   }
 
   private completeLevel(): void {
+    const timeMs = this.hud.timeMs;
+    const timeBonus = Math.max(0, 1000 - Math.floor(timeMs / 100) * 10);
+    this.hud.addScore(1000 + timeBonus);
     this.complete = true;
     this.player.freeze();
     const time = this.hud.stopTimer(true);
@@ -1514,6 +1519,8 @@ export class LevelScene extends Scene {
   }
 
   private killPlayer(): void {
+    this.hud.addDeath();
+    this.hud.addScore(-50);
     audio.death();
     this.player.freeze();
     this.clearProjectiles();
