@@ -25,6 +25,27 @@ const engine = new Engine({
 const scene = new LevelScene();
 engine.add('level', scene);
 
+// Excalibur runs one fixed update per missed 16.6 ms step. A long frame (GC, a
+// slow machine, or Firefox throttling the tab) makes it try to catch up every
+// missed step at once; those updates can take longer than the frame they are
+// in, so the backlog snowballs and the tab locks up. Clamp the delta the loop
+// receives so it can only ever catch up a couple of steps per frame.
+const MAX_LOOP_MS = 50;
+const loop = engine as unknown as {
+  _mainloop: (elapsedMs: number) => void;
+  _lagMs?: number;
+};
+const runMainloop = loop._mainloop.bind(engine);
+loop._mainloop = (elapsedMs: number) => runMainloop(Math.min(elapsedMs, MAX_LOOP_MS));
+
+// Drop any backlog when the tab becomes visible again, so returning to a
+// throttled tab cannot replay minutes of simulation in a single frame.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    loop._lagMs = 0;
+  }
+});
+
 async function boot(): Promise<void> {
   // Excalibur's default loader skips Sound resources when the play button is
   // suppressed, so preload everything explicitly before the scene starts.

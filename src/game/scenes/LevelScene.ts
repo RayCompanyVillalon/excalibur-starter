@@ -156,12 +156,23 @@ export class LevelScene extends Scene {
     this.hud.loadScore();
     (this as any)._engine = engine;
     // start the loop on the first key press or click. Keep listening until the
-    // context actually unlocks, then detach.
+    // context actually unlocks, then detach. Cap the retries: `keydown` repeats
+    // while a key is held, and a failed unlock must not queue a new attempt on
+    // every repeat.
+    let unlockAttempts = 0;
+    const detachUnlock = (): void => {
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('pointerdown', unlock);
+    };
     const unlock = (): void => {
+      if (unlockAttempts >= 8) {
+        detachUnlock();
+        return;
+      }
+      unlockAttempts += 1;
       void audio.unlock().then((ok) => {
         if (ok) {
-          window.removeEventListener('keydown', unlock);
-          window.removeEventListener('pointerdown', unlock);
+          detachUnlock();
         }
       });
     };

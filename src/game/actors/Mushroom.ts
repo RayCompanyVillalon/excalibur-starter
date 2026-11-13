@@ -185,7 +185,6 @@ export class Mushroom extends Actor {
     this.normalSprite = new Sprite({ image: mushroomImage(false) });
     this.squashedSprite = new Sprite({ image: mushroomImage(true) });
     this.graphics.use(this.normalSprite);
-    this.graphics.offset = new Vector(-8, -8);
   }
 
   /** Put the enemy back on its patrol start for a fresh run. */
