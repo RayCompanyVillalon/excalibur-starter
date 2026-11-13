@@ -153,11 +153,8 @@ export class LevelScene extends Scene {
   private darkness: DarknessPostProcessor | null = null;
 
   override onInitialize(engine: Engine): void {
-    // One screen-space lamp for the whole run; dark levels switch it on.
-    this.darkness = new DarknessPostProcessor();
-    engine.graphicsContext.addPostProcessor(this.darkness);
-
-    // Browsers only allow audio after a gesture, so resume the AudioContext and
+    this.hud.loadScore();
+    (this as any)._engine = engine;
     // start the loop on the first key press or click. Keep listening until the
     // context actually unlocks, then detach. Cap the retries: `keydown` repeats
     // while a key is held, and a failed unlock must not queue a new attempt on
@@ -181,6 +178,13 @@ export class LevelScene extends Scene {
     };
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
+
+    // Listen for T key to toggle the stats panel overlay.
+    window.addEventListener('keydown', (ev) => {
+      if (ev.code === 'KeyT') {
+        this.hud.toggleStats();
+      }
+    });
 
     // `?level=2` boots straight into a level, which is handy for playtesting.
     const requested = Number(new URLSearchParams(window.location.search).get('level') ?? '1');
@@ -231,6 +235,10 @@ export class LevelScene extends Scene {
     this.backgroundColor = Color.fromHex(
       cave ? GAME.colors.caveBackground : GAME.colors.background,
     );
+    if (info.dark && !this.darkness) {
+      this.darkness = new DarknessPostProcessor();
+      (this as any)._engine.graphicsContext.addPostProcessor(this.darkness);
+    }
     if (this.darkness) {
       this.darkness.enabled = Boolean(info.dark);
     }
@@ -516,6 +524,7 @@ export class LevelScene extends Scene {
           `level  ${this.levelInfo.section} — ${this.levelInfo.name}`,
           `item  ${this.ingredientCollected ? '✓' : '✗'} ${this.levelInfo.ingredient}`,
           `time  ${formatTime(this.hud.timeMs)}`,
+          `score ${this.hud.score}  deaths ${this.hud.deaths}`,
           `shots ${this.projectiles.length}`,
           `spiders ${this.spiders.filter((spider) => spider.isAlive).length}/${this.spiders.length}`,
           `spikes ${this.stalactites.filter((stalactite) => stalactite.isDangerous).length}/${this.stalactites.length}`,
@@ -1499,6 +1508,7 @@ export class LevelScene extends Scene {
   // ─── Game events ────────────────────────────────────────────────────
 
   private pickupCollectible(): void {
+    this.hud.addScore(500);
     if (!this.collectible || this.collectible.isCollected) {
       return;
     }
@@ -1510,6 +1520,9 @@ export class LevelScene extends Scene {
   }
 
   private completeLevel(): void {
+    const timeMs = this.hud.timeMs;
+    const timeBonus = Math.max(0, 1000 - Math.floor(timeMs / 100) * 10);
+    this.hud.addScore(1000 + timeBonus);
     this.complete = true;
     this.player.freeze();
     const time = this.hud.stopTimer(true);
@@ -1525,6 +1538,8 @@ export class LevelScene extends Scene {
   }
 
   private killPlayer(): void {
+    this.hud.addDeath();
+    this.hud.addScore(-50);
     audio.death();
     this.player.freeze();
     this.clearProjectiles();
