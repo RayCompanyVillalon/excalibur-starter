@@ -295,6 +295,77 @@ export function buildCheeseCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
+/** A pickle: Level 5's ingredient — a crunchy green spear. */
+export function buildPicklesCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 34;
+  canvas.height = 26;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+  ctx.imageSmoothingEnabled = false;
+
+  // Pickup glow.
+  ctx.fillStyle = 'rgba(120, 200, 80, 0.18)';
+  ctx.beginPath();
+  ctx.ellipse(17, 13, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body: a rounded spear shape.
+  const body = ctx.createLinearGradient(4, 4, 28, 20);
+  body.addColorStop(0, '#82c44c');
+  body.addColorStop(0.4, '#5e9930');
+  body.addColorStop(1, '#3a6618');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(5, 20);
+  ctx.quadraticCurveTo(3, 15, 7, 5);
+  ctx.quadraticCurveTo(12, 0.5, 18, 1);
+  ctx.quadraticCurveTo(26, 2, 29, 7);
+  ctx.quadraticCurveTo(33, 16, 26, 22);
+  ctx.quadraticCurveTo(22, 24, 16, 23);
+  ctx.quadraticCurveTo(8, 23, 5, 20);
+  ctx.closePath();
+  ctx.fill();
+
+  // Contour highlight.
+  ctx.fillStyle = 'rgba(160, 230, 110, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(15, 7, 9, 3.5, -0.25, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Warts / bumps.
+  ctx.fillStyle = '#487a20';
+  for (const [wx, wy] of [
+    [9, 12], [14, 8], [20, 11], [13, 16], [20, 17], [24, 14],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(wx, wy, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(80, 140, 30, 0.5)';
+    ctx.beginPath();
+    ctx.arc(wx - 0.5, wy - 0.5, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#487a20';
+  }
+
+  // Stem end.
+  ctx.fillStyle = '#5c3d1a';
+  ctx.fillRect(5, 5, 3, 2);
+  ctx.fillStyle = '#7a5528';
+  ctx.fillRect(5, 4, 3, 1);
+
+  // Ground shadow.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(17, 24.5, 11, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  return canvas;
+}
+
+
 /** Pick the ingredient art for the current level. */
 export function buildIngredientCanvas(ingredient: string): HTMLCanvasElement {
   switch (ingredient.toLowerCase()) {
@@ -304,6 +375,8 @@ export function buildIngredientCanvas(ingredient: string): HTMLCanvasElement {
       return buildLettuceCanvas();
     case 'cheese':
       return buildCheeseCanvas();
+    case 'pickles':
+      return buildPicklesCanvas();
     default:
       return buildBreadCanvas();
   }

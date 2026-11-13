@@ -70,9 +70,9 @@ export const GAME = {
   /** Screen-space lamp used by dark cave levels. */
   darkness: {
     /** Radius of the bright part of the lamp, in screen pixels. */
-    radius: 350,
+    radius: 320,
     /** 0 = untouched screen, 1 = fully dark outside the lamp. */
-    darkness: 0.65,
+    darkness: 0.82,
   },
   collectible: {
     /** How many px above the tile surface to draw the collectible. */
@@ -130,6 +130,12 @@ export const GAME = {
       gravity: 1900,
       /** How long the shatter effect lingers, in ms. */
       shatterMs: 360,
+    },
+    bearTrap: {
+      width: 22,
+      height: 14,
+      /** Damage radius from centre, in px. */
+      triggerRadius: 16,
     },
   },
   colors: {

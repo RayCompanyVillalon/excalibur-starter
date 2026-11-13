@@ -33,6 +33,8 @@ const COLLECTIBLE = 'C';
 const MUSHROOM = 'M';
 const LAND_MINE = 'L';
 const STALACTITE = 'T';
+const GOBLIN = 'K';
+const BEAR_TRAP = 'B';
 const AIR = '.';
 
 export function parseLevel(rows: readonly string[], tile = GAME.world.tile): LevelData {
@@ -99,6 +101,8 @@ export function parseLevel(rows: readonly string[], tile = GAME.world.tile): Lev
         case MUSHROOM:
         case LAND_MINE:
         case STALACTITE:
+        case GOBLIN:
+        case BEAR_TRAP:
           break;
         default:
           throw new Error(`Unknown level tile "${cell}" at ${col},${row}`);

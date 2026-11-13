@@ -247,6 +247,70 @@ describe('Level 4', () => {
   });
 });
 
+
+describe('Level 5', () => {
+  const info = LEVELS[4]!;
+  const level = parseLevel(info.map);
+
+  it('opens the Caves section with the pickles', () => {
+    expect(level.width).toBe(100);
+    expect(level.height).toBe(34);
+    expect(info.section).toBe('Caves');
+    expect(info.ingredient).toBe('Pickles');
+    expect(info.tileset).toBe('underworld');
+    expect(info.dark).toBe(true);
+    expect(info.goblins).toBe(true);
+  });
+
+  it('hides the pickles in the mid-level and puts the door on the right', () => {
+    expect(level.collectibles).toHaveLength(1);
+    expect(level.collectibles[0]).toEqual({
+      x: 55.5 * GAME.world.tile,
+      y: 18.5 * GAME.world.tile,
+    });
+    expect(level.goal.x).toBe(92 * GAME.world.tile);
+    expect(level.goal.y).toBe(29 * GAME.world.tile);
+  });
+
+  it('ships goblins, bear traps, spiders and stalactites', () => {
+    const count = (marker: string): number =>
+      info.map.reduce(
+        (total, row) => total + [...row].filter((cell) => cell === marker).length,
+        0,
+      );
+    expect(count('K')).toBeGreaterThan(8); // goblins
+    expect(count('B')).toBeGreaterThan(7); // bear traps
+    expect(count('M')).toBeGreaterThan(4); // spiders
+    expect(count('T')).toBeGreaterThan(6); // stalactites
+    expect(info.platforms ?? []).toHaveLength(0);
+    expect(info.boss).toBeUndefined();
+  });
+
+  it('anchors every spider and stalactite to a solid ceiling', () => {
+    for (let row = 0; row < info.map.length; row += 1) {
+      const line = info.map[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'M' && line[col] !== 'T') {
+          continue;
+        }
+        expect((info.map[row - 1] ?? '')[col]).toBe('#');
+      }
+    }
+  });
+
+  it('keeps every bear trap sitting on solid ground', () => {
+    for (let row = 0; row < info.map.length; row += 1) {
+      const line = info.map[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'B') {
+          continue;
+        }
+        expect((info.map[row + 1] ?? '')[col]).toBe('#');
+      }
+    }
+  });
+});
+
 describe('parseLevel validation', () => {
   it('pads short rows with air', () => {
     const level = parseLevel(['P.G']);

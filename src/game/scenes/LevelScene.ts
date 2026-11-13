@@ -23,6 +23,8 @@ import { Spike } from '../actors/Spike';
 import { Mushroom } from '../actors/Mushroom';
 import { Spider, SpiderWeb } from '../actors/Spider';
 import { Stalactite } from '../actors/Stalactite';
+import { BearTrap } from '../actors/BearTrap';
+import { Goblin } from '../actors/Goblin';
 import { LandMine } from '../actors/LandMine';
 import { WormBoss } from '../actors/WormBoss';
 import { MovingPlatform } from '../actors/MovingPlatform';
@@ -109,6 +111,8 @@ export class LevelScene extends Scene {
   private mushrooms: Mushroom[] = [];
   private spiders: Spider[] = [];
   private stalactites: Stalactite[] = [];
+  private bearTraps: BearTrap[] = [];
+  private goblins: Goblin[] = [];
   private landMines: LandMine[] = [];
   private wormBoss: WormBoss | null = null;
   private platforms: MovingPlatform[] = [];
@@ -132,6 +136,7 @@ export class LevelScene extends Scene {
   private dashTrail: { actor: Actor; lifeMs: number }[] = [];
   private dashTrailTimer = 0;
   private parryRings: { actor: Actor; lifeMs: number }[] = [];
+  private _goblinMashCount = 0;
   private darkness: DarknessPostProcessor | null = null;
 
   override onInitialize(engine: Engine): void {
@@ -170,6 +175,8 @@ export class LevelScene extends Scene {
     this.mushrooms = [];
     this.spiders = [];
     this.stalactites = [];
+    this.bearTraps = [];
+    this.goblins = [];
     this.landMines = [];
     this.platforms = [];
     this.saws = [];
@@ -213,6 +220,10 @@ export class LevelScene extends Scene {
     } else {
       this.buildMushrooms();
     }
+    if (info.goblins) {
+      this.buildGoblins();
+    }
+    this.buildBearTraps();
     this.buildStalactites();
     this.buildLandMines();
     this.buildWormBoss();
@@ -324,6 +335,28 @@ export class LevelScene extends Scene {
       return;
     }
 
+    // Handle goblin grapple escape: player must mash E.
+    const grappling = this.goblins.some((g) => g.isGrappling);
+    if (grappling) {
+      if (keyboard.wasPressed(Keys.E)) {
+        // Each E press counts — break free after 5 presses.
+        this._goblinMashCount = (this._goblinMashCount ?? 0) + 1;
+        if (this._goblinMashCount >= 6) {
+          for (const goblin of this.goblins) {
+            if (goblin.isGrappling) {
+              goblin.breakFree();
+            }
+          }
+          this._goblinMashCount = 0;
+          this.hud.toast('You broke free!', 1000);
+        }
+      }
+      // Player can't move while grappled.
+      return;
+    } else {
+      this._goblinMashCount = 0;
+    }
+
     const wasGrounded = this.player.grounded;
     const fallSpeed = this.player.kinematics.vy;
     const prevFeet = this.player.bounds().y + this.player.height;
@@ -360,6 +393,8 @@ export class LevelScene extends Scene {
     if (this.checkEnemyContact(prevFeet, fallSpeed)) return;
     if (this.checkSpiderContact(prevFeet, fallSpeed)) return;
     if (this.checkStalactiteContact()) return;
+    if (this.checkGoblinContact()) return;
+    if (this.checkBearTrapContact()) return;
     if (this.checkLandMineContact()) return;
     if (this.checkWormContact()) return;
 
@@ -422,11 +457,15 @@ export class LevelScene extends Scene {
       );
     }
 
-    // Update spider knowledge of the player position for seeking.
+    // Update spider and goblin knowledge of player position for seeking.
     const pCenter = this.playerCenter();
     for (const spider of this.spiders) {
       spider.playerX = pCenter.x;
       spider.playerY = pCenter.y;
+    }
+    for (const goblin of this.goblins) {
+      goblin.playerX = pCenter.x;
+      goblin.playerY = pCenter.y;
     }
 
     if (this.hud.debugOn) {
@@ -879,6 +918,52 @@ export class LevelScene extends Scene {
     }
   }
 
+  /**
+   * Goblins roam the cave platforms and chase the player to steal coins.
+   */
+  private buildGoblins(): void {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'G') {
+          continue;
+        }
+        const x = (col + 0.5) * tile;
+        const y = (row + 1) * tile;
+        const bounds = this.findPlatformBounds(col, row);
+        const goblin = new Goblin(x, y, bounds.left, bounds.right);
+        void this.level; // goblins don't need solids
+        this.goblins.push(goblin);
+        this.add(goblin);
+      }
+    }
+  }
+
+  private buildBearTraps(): void {
+    const tile = GAME.world.tile;
+    const rows = this.levelInfo.map;
+    for (let row = 0; row < rows.length; row += 1) {
+      const line = rows[row] ?? '';
+      for (let col = 0; col < line.length; col += 1) {
+        if (line[col] !== 'B') {
+          continue;
+        }
+        let surfaceY = (row + 1) * tile;
+        for (let below = row + 1; below < rows.length; below += 1) {
+          if ((rows[below] ?? '')[col] === '#') {
+            surfaceY = below * tile;
+            break;
+          }
+        }
+        const trap = new BearTrap((col + 0.5) * tile, surfaceY);
+        this.bearTraps.push(trap);
+        this.add(trap);
+      }
+    }
+  }
+
   /** Stalactites hang from the solid tile above each `T` marker. */
   private buildStalactites(): void {
     const tile = GAME.world.tile;
@@ -1042,6 +1127,42 @@ export class LevelScene extends Scene {
         this.player.resolveParry();
         audio.parry();
         this.spawnParryRing();
+        return;
+      }
+    }
+
+    // Bear traps: disarm the first one within reach.
+    for (const trap of this.bearTraps) {
+      if (trap.isTriggered) {
+        continue;
+      }
+      const tbox = {
+        x: trap.pos.x - trap.width / 2,
+        y: trap.pos.y - trap.height,
+        width: trap.width,
+        height: trap.height,
+      };
+      if (overlaps(box, tbox)) {
+        trap.disarm();
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        this.hud.toast('Bear trap disarmed!', 1200);
+        return;
+      }
+    }
+
+    // Goblins: stun any non-stunned goblin within reach.
+    for (const goblin of this.goblins) {
+      if (goblin.isStunned || !goblin.isDangerous) {
+        continue;
+      }
+      if (overlaps(box, goblin.bounds())) {
+        goblin.breakFree();
+        this.player.resolveParry();
+        audio.parry();
+        this.spawnParryRing();
+        this.hud.toast('Goblin repelled!', 1200);
         return;
       }
     }
@@ -1262,6 +1383,48 @@ export class LevelScene extends Scene {
     return false;
   }
 
+  private checkGoblinContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
+    const body = this.player.bounds();
+    for (const goblin of this.goblins) {
+      if (goblin.isStunned || !goblin.isDangerous) {
+        continue;
+      }
+      if (overlaps(body, goblin.bounds())) {
+        goblin.grapple();
+        this.hud.toast('Grabbed! Mash E to break free!', 2000);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private checkBearTrapContact(): boolean {
+    if (this.player.parryInvulnerable) {
+      return false;
+    }
+    const body = this.player.bounds();
+    for (const trap of this.bearTraps) {
+      if (trap.isTriggered) {
+        continue;
+      }
+      if (overlaps(body, {
+        x: trap.pos.x - trap.width / 2,
+        y: trap.pos.y - trap.height,
+        width: trap.width,
+        height: trap.height,
+      })) {
+        trap.trigger();
+        this.killPlayer();
+        return true;
+      }
+    }
+    return false;
+  }
+
+
   private checkLandMineContact(): boolean {
     if (this.player.parryInvulnerable) {
       return false;
@@ -1365,6 +1528,12 @@ export class LevelScene extends Scene {
     }
     for (const stalactite of this.stalactites) {
       stalactite.reset();
+    }
+    for (const goblin of this.goblins) {
+      goblin.reset();
+    }
+    for (const trap of this.bearTraps) {
+      trap.reset();
     }
     this.wormBoss?.reset();
     this.clearProjectiles();
