@@ -53,6 +53,21 @@ function animation(
   });
 }
 
+/**
+ * Wrap a single graphic in a one-frame animation.
+ *
+ * Excalibur multiplies `graphics.offset` by the graphic's own scale. The frame
+ * sprites here are drawn at 2x, so a bare Sprite would have its offset doubled
+ * and be lifted off the ground. Using an Animation (scale 1) for every state
+ * keeps the shared offset consistent, so idle/jump sit exactly like walk/fall.
+ */
+function still(graphic: Graphic): Animation {
+  return new Animation({
+    frames: [{ graphic, duration: 1000 }],
+    strategy: AnimationStrategy.Loop,
+  });
+}
+
 function setFlip(graphic: Graphic, flip: boolean): void {
   graphic.flipHorizontal = flip;
   if (graphic instanceof Animation) {
@@ -175,9 +190,9 @@ export class Player extends Actor {
   private buildGraphics(): void {
     const { walk, fall } = sheetsFor();
 
-    this.graphics.add('idle', walk.getSprite(0, 0, { scale: SCALE() }));
+    this.graphics.add('idle', still(walk.getSprite(0, 0, { scale: SCALE() })));
     this.graphics.add('walk', animation(walk, [0, 1, 2, 3], 110));
-    this.graphics.add('jump', Images.playerJump.toSprite({ scale: SCALE() }));
+    this.graphics.add('jump', still(Images.playerJump.toSprite({ scale: SCALE() })));
     this.graphics.add('fall', animation(fall, [0, 1], 150));
     this.graphics.use('idle');
 
