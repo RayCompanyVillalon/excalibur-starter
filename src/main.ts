@@ -42,7 +42,7 @@ void boot().catch((error: unknown) => {
 });
 
 // Keep the page from scrolling or opening browser help while playing.
-const prevent = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F1']);
+const prevent = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F1', 'KeyT']);
 window.addEventListener(
   'keydown',
   (event) => {

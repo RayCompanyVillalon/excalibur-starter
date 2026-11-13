@@ -286,6 +286,9 @@ export class LevelScene extends Scene {
       const muted = audio.toggleMute();
       this.hud.toast(muted ? 'Sound off' : 'Sound on', 1000);
     }
+    if (keyboard.wasPressed(Keys.T)) {
+      this.hud.toggleStats();
+    }
     if (keyboard.wasPressed(Keys.R)) {
       this.resetRun('Run reset');
       return;
